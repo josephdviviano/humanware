@@ -15,9 +15,8 @@ import torch
 from utils.config import cfg, cfg_from_file
 from utils.dataloader import prepare_dataloaders
 from utils.misc import mkdir_p
-# from models.baselines import BaselineCNN, ConvNet, BaselineCNN_dropout
+from models.deepconv import DeepConv
 from models.vgg import VGG
-# from models.resnet import ResNet18
 from trainer.trainer import train_model
 
 
@@ -125,8 +124,7 @@ if __name__ == '__main__':
     fix_seed(cfg.SEED)
 
     # Prepare data
-    (train_loader,
-     valid_loader) = prepare_dataloaders(
+    (train_loader, valid_loader) = prepare_dataloaders(
         dataset_split=cfg.TRAIN.DATASET_SPLIT,
         dataset_path=cfg.INPUT_DIR,
         metadata_filename=cfg.METADATA_FILENAME,
@@ -138,15 +136,17 @@ if __name__ == '__main__':
     # baseline_cnn = ConvNet(num_classes=7)
     # baseline_cnn = BaselineCNN(num_classes=7)
     # resnet18 = ResNet18(num_classes=7)
-    vgg19 = VGG('VGG19', num_classes=7)
+    # vgg19 = VGG('VGG19', num_classes=7)
     # baseline_cnn = BaselineCNN_dropout(num_classes=7, p=0.5)
+    deep_conv = DeepConv()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Device used: ", device)
 
-    train_model(vgg19,
+    train_model(deep_conv,
                 train_loader=train_loader,
                 valid_loader=valid_loader,
                 num_epochs=cfg.TRAIN.NUM_EPOCHS,
                 device=device,
                 output_dir=cfg.OUTPUT_DIR)
+
