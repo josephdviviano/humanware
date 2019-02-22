@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export ROOT_DIR=$HOME'/digit-detection'
+export ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export SVHN_DIR='/rap/jvb-000-aa/COURS2019/etudiants/data/humanware/SVHN'
 export DATA_DIR=$SVHN_DIR/train
 export TMP_DATA_DIR=$DATA_DIR
@@ -11,7 +11,7 @@ mkdir -p $TMP_DATA_DIR
 mkdir -p $TMP_RESULTS_DIR
 
 if [ ! -f $SVHN_DIR'/train.tar.gz' ]; then
-    
+
     echo "Downloading files for the training set!"
     wget -P $SVHN_DIR http://ufldl.stanford.edu/housenumbers/train.tar.gz
 fi
