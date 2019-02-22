@@ -30,12 +30,6 @@ class Loss():
         """
         len_loss = self.len_loss(output_len, target_len)
 
-        _, pred_len = torch.max(output_len.data, 1)
-
-        # Don't attempt to predict sequences that are longer than the
-        # sequence length predicted.
-        pred_len[pred_len > len(output_seq)] = 0
-
         # Accumulates the loss across the sequence, ignoring predictions
         # for any number that was -1 in target (i.e., should not have been
         # predicted). We do this by zeroing the loss at those locations.
@@ -43,9 +37,7 @@ class Loss():
 
         for i in range(len(output_seq)):
 
-            # TODO: REMOVE PREDICTIONS PAST THE LENGTH REQUESTED BY pred_len
-
-            # Used to keep track of -1s.
+            # Keep track of -1s: numbers that don't exist in ground truth.
             target_mask = target_seq[:, i].clone()
             target_mask[target_mask >= 0] = 1
             target_mask[target_mask <= 0] = 0
@@ -63,6 +55,51 @@ class Loss():
         loss = len_loss + dig_loss
 
         return(loss)
+
+def count_correct_sequences(output_seq, target_seq, valid_len_mask):
+    """
+    Sequence predictions. All elements in valid_len_mask that are
+    0 are not counted.
+    """
+    # TODO: astype string length should be taken from cfg!
+    # Store the predicted and target integers as an array of strings.
+    this_batch = output_seq[0].size()[0]
+    str_target = np.repeat('', this_batch).astype('<U10')
+    str_pred = np.repeat('', this_batch).astype('<U10')
+
+    for i in range(len(output_seq)):
+
+        # Keep track of -1s: numbers that don't exist in ground truth.
+        target_mask = target_seq[:, i].clone()
+        target_mask[target_mask >= 0] = 1
+        target_mask[target_mask <= 0] = 0
+
+        # Get int representation of predictions and targets.
+        _, seq_preds = torch.max(output_seq[i].data, 1)
+        these_targets = target_seq[:, i].clone()
+
+        # Convert house numbers to arrays of strings (also, numpy).
+        seq_preds = seq_preds.cpu().numpy().astype(np.str)
+        these_targets = these_targets.cpu().numpy().astype(np.str)
+
+        # Convert mask to numpy.
+        target_mask = target_mask.cpu().numpy().astype(np.uint8)
+
+        # Remove non-ground-truth numbers.
+        seq_preds[target_mask == 0] = ''
+        these_targets[target_mask == 0] = ''
+
+        # For each subject in the batch, add the string representation
+        # of the target to the corresponding element of the string array.
+        for j, (target, pred) in enumerate(zip(these_targets, seq_preds)):
+            str_target[j] += target
+            str_pred[j] += pred
+
+    # Zero out predictions made where the predicted length was incorrect.
+    str_pred[valid_len_mask == 0] = ''
+    n_correct = np.sum(str_pred == str_target)
+
+    return(n_correct)
 
 
 def train_model(model, train_loader, valid_loader, device,
@@ -102,22 +139,20 @@ def train_model(model, train_loader, valid_loader, device,
     print("# Start training #")
     for epoch in range(num_epochs):
 
-        train_loss = 0
-        train_n_iter = 0
+        train_loss, train_n_iter = 0, 0
 
         # Set model to train mode
         model = model.train()
 
-        # Iterate over train data
         print("\n\n\nIterating over training data...")
-        for i, batch in enumerate(tqdm(train_loader)):
+        for batch_idx, batch in enumerate(tqdm(train_loader)):
 
             # Get the inputs
             inputs, targets = batch['image'], batch['target']
 
             inputs = inputs.to(device)
-            target_ndigits = targets[:, 0].long().to(device)
-            target_sequence = targets[:, 1:].long().to(device)
+            target_len = targets[:, 0].long().to(device)
+            target_seq = targets[:, 1:].long().to(device)
 
             # Zero the gradient buffer
             optimizer.zero_grad()
@@ -126,7 +161,7 @@ def train_model(model, train_loader, valid_loader, device,
             output_len, output_seq = model(inputs)
 
             loss = multi_loss.calc(
-                output_len, target_ndigits, output_seq, target_sequence)
+                output_len, target_len, output_seq, target_seq)
 
             # Backward
             loss.backward()
@@ -138,85 +173,65 @@ def train_model(model, train_loader, valid_loader, device,
             train_loss += loss.item()
             train_n_iter += 1
 
-        valid_loss = 0
-        valid_n_iter = 0
+        # Validation data.
+        valid_loss, valid_n_iter = 0, 0
         valid_len_correct, valid_seq_correct = 0, 0
         valid_n_samples = 0
 
-        # Set model to evaluate mode
+        # Set model to evaluate mode.
         model = model.eval()
 
-        # Iterate over valid data
         print("Iterating over validation data...")
-        for i, batch in enumerate(tqdm(valid_loader)):
-            # get the inputs
+        for batch_idx, batch in enumerate(tqdm(valid_loader)):
+
+            # Get the inputs.
             inputs, targets = batch['image'], batch['target']
 
             inputs = inputs.to(device)
-            target_ndigits = targets[:, 0].long().to(device)
-            target_sequence = targets[:, 1:].long().to(device)
+            target_len = targets[:, 0].long().to(device)
+            target_seq = targets[:, 1:].long().to(device)
 
-            # Forward
+            # Forward.
             output_len, output_seq = model(inputs)
 
             loss = multi_loss.calc(
-                output_len, target_ndigits, output_seq, target_sequence)
+                output_len, target_len, output_seq, target_seq)
 
             # Statistics
             valid_loss += loss.item()
             valid_n_iter += 1
 
-            # TODO: astype string length should be taken from cfg!
-            this_batch = output_seq[0].size()[0]
-            str_target = np.repeat('', this_batch).astype('<U10')
-            str_pred = np.repeat('', this_batch).astype('<U10')
-
-            for i in range(len(output_seq)):
-
-                # Used to keep track of -1s.
-                target_mask = target_sequence[:, i].clone()
-                target_mask[target_mask >= 0] = 1
-                target_mask[target_mask <= 0] = 0
-
-                # Get int representation of predictions and targets.
-                _, int_pred = torch.max(output_seq[i].data, 1)
-                int_target = target_sequence[:, i].clone()
-                int_pred = int_pred.cpu().numpy().astype(np.str)
-                int_target = int_target.cpu().numpy().astype(np.str)
-                target_mask = target_mask.cpu().numpy().astype(np.uint8)
-
-                # Remove non-digit numbers.
-                int_pred[target_mask == 0] = ''
-                int_target[target_mask == 0] = ''
-                for j, (target, pred) in enumerate(zip(int_target, int_pred)):
-                    str_target[j] = str_target[j] + target
-                    str_pred[j] += pred
-
-            valid_seq_correct += np.sum(str_pred == str_target)
-
+            # Length predictions.
             _, len_pred = torch.max(output_len.data, 1)
-            valid_len_correct += (len_pred == target_ndigits).sum().item()
-            valid_n_samples += target_ndigits.size(0)
+            valid_len_mask = (len_pred == target_len).cpu().numpy()
+            valid_len_correct += np.sum(valid_len_mask)
+
+            # Sequence predictions.
+            valid_seq_correct += count_correct_sequences(
+                output_seq, target_seq, valid_len_mask)
+
+            valid_n_samples += target_len.size(0)
 
         train_loss_history.append(train_loss / train_n_iter)
         valid_loss_history.append(valid_loss / valid_n_iter)
         valid_len_acc = valid_len_correct / valid_n_samples
         valid_seq_acc = valid_seq_correct / valid_n_samples
-        valid_tot_acc = gmean([valid_len_acc, valid_seq_acc])
 
-        print('\nEpoch: {}/{}'.format(epoch + 1, num_epochs))
-        print('\tTrain Loss: {:.4f}'.format(train_loss / train_n_iter))
-        print('\tValid Loss: {:.4f}'.format(valid_loss / valid_n_iter))
-        print('\tValid Acc (Len/Seq/Tot) = [{:.4f} {:.4f} {:.4f}]'.format(
-            valid_len_acc, valid_seq_acc, valid_tot_acc))
+        print('\t[{}/{}] Loss (t/v)= [{:.4f} {:.4f}]'.format(
+            epoch+1, num_epochs,
+            train_loss/train_n_iter,
+            valid_loss/valid_n_iter))
+        print('\tValid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
+            valid_len_acc, valid_seq_acc))
 
-        if valid_tot_acc > valid_best_accuracy:
-            valid_best_accuracy = valid_tot_acc
+        # Early stopping on best sequence accuracy.
+        if valid_seq_acc > valid_best_accuracy:
+            valid_best_accuracy = valid_seq_acc
             best_model = copy.deepcopy(model)
             print('Checkpointing new model...')
             model_filename = output_dir + '/checkpoint.pth'
             torch.save(model, model_filename)
-        valid_accuracy_history.append(valid_tot_acc)
+        valid_accuracy_history.append(valid_seq_acc)
 
     time_elapsed = time.time() - since
 
@@ -227,3 +242,4 @@ def train_model(model, train_loader, valid_loader, device,
     model_filename = output_dir + '/best_model.pth'
     torch.save(best_model, model_filename)
     print('Best model saved to :', model_filename)
+
