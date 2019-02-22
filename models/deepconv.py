@@ -8,11 +8,11 @@ import torch
 import torch.nn as nn
 
 
-class Model(nn.Module):
+class DeepConv(nn.Module):
     CHECKPOINT_FILENAME_PATTERN = 'model-{}.tar'
 
     def __init__(self):
-        super(Model, self).__init__()
+        super(DeepConv, self).__init__()
 
         hidden1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=48, kernel_size=5, padding=2),
