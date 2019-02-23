@@ -8,6 +8,7 @@ TRAIN:
   VALID_SPLIT: 0.8
   SAMPLE_SIZE: -1 # Number of samples to use (for debugging purposes), set to -1 to use the entire dataset
   BATCH_SIZE: 32
-  NUM_EPOCHS: 25
+  NUM_EPOCHS: 100
   LR: 0.001
   MOM: 0.9
+  SCHEDULER_PATIENCE: 10
