@@ -4,6 +4,7 @@ import copy
 import time
 
 import torch
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
 import numpy as np
@@ -134,17 +135,28 @@ def train_model(model, train_loader, valid_loader, device,
     optimizer = torch.optim.SGD(
         model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM)
 
+    scheduler = ReduceLROnPlateau(optimizer,
+        patience=cfg.TRAIN.SCHEDULER_PATIENCE)
+    valid_loss = 10000 # Initial value.
+
     multi_loss = Loss()
 
     print("# Start training #")
     for epoch in range(num_epochs):
 
-        train_loss, train_n_iter = 0, 0
+        # Reduces LR by factor of 10 if we don't beat best valid_loss in
+        # cfg.TRAIN.SCHEDULER_PATIENCE epochs.
+        scheduler.step(valid_loss)
 
-        # Set model to train mode
+        # Initialize values for this epoch.
+        train_loss, train_n_iter = 0, 0
+        valid_loss, valid_n_iter = 0, 0
+        valid_len_correct, valid_seq_correct = 0, 0
+        valid_n_samples = 0
+
+        # Train data.
         model = model.train()
 
-        print("\n\n\nIterating over training data...")
         for batch_idx, batch in enumerate(tqdm(train_loader)):
 
             # Get the inputs
@@ -174,14 +186,8 @@ def train_model(model, train_loader, valid_loader, device,
             train_n_iter += 1
 
         # Validation data.
-        valid_loss, valid_n_iter = 0, 0
-        valid_len_correct, valid_seq_correct = 0, 0
-        valid_n_samples = 0
-
-        # Set model to evaluate mode.
         model = model.eval()
 
-        print("Iterating over validation data...")
         for batch_idx, batch in enumerate(tqdm(valid_loader)):
 
             # Get the inputs.
@@ -212,23 +218,27 @@ def train_model(model, train_loader, valid_loader, device,
 
             valid_n_samples += target_len.size(0)
 
-        train_loss_history.append(train_loss / train_n_iter)
-        valid_loss_history.append(valid_loss / valid_n_iter)
+        # Calculate final values
+        train_loss /= train_n_iter
+        valid_loss /= valid_n_iter
+
+        train_loss_history.append(train_loss)
+        valid_loss_history.append(valid_loss)
         valid_len_acc = valid_len_correct / valid_n_samples
         valid_seq_acc = valid_seq_correct / valid_n_samples
 
-        print('\t[{}/{}] Loss (t/v)= [{:.4f} {:.4f}]'.format(
-            epoch+1, num_epochs,
-            train_loss/train_n_iter,
-            valid_loss/valid_n_iter))
-        print('\tValid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
-            valid_len_acc, valid_seq_acc))
+
+        # For reporting purposes.
+        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss,valid_loss)
+        acc_msg = 'Valid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
+            valid_len_acc, valid_seq_acc)
+        print('\t[{}/{}] {} {}'.format(epoch+1, num_epochs, loss_msg, acc_msg))
 
         # Early stopping on best sequence accuracy.
         if valid_seq_acc > valid_best_accuracy:
             valid_best_accuracy = valid_seq_acc
             best_model = copy.deepcopy(model)
-            print('Checkpointing new model...')
+            print('Checkpointing new model...\n')
             model_filename = output_dir + '/checkpoint.pth'
             torch.save(model, model_filename)
         valid_accuracy_history.append(valid_seq_acc)

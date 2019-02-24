@@ -21,7 +21,7 @@ __C.TRAIN.BATCH_SIZE = 32
 __C.TRAIN.NUM_EPOCHS = 5
 __C.TRAIN.LR = 0.001
 __C.TRAIN.MOM = 0.9
-
+__C.TRAIN.SCHEDULER_PATIENCE = 5
 
 def _merge_a_into_b(a, b):
     '''
