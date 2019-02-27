@@ -132,14 +132,18 @@ def train_model(model, train_loader, valid_loader, device,
     train_loss_history, valid_loss_history = [], []
     valid_accuracy_history = []
     valid_best_accuracy = 0
-    optimizer = torch.optim.SGD(
-        model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM)
-
-    scheduler = ReduceLROnPlateau(optimizer,
-        patience=cfg.TRAIN.SCHEDULER_PATIENCE)
     valid_loss = 10000 # Initial value.
 
     multi_loss = Loss()
+
+    #optimizer = torch.optim.SGD(
+    #    model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM,
+    #    weight_decay=cfg.TRAIN.L2)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=cfg.TRAIN.LR, weight_decay=cfg.TRAIN.L2)
+
+    scheduler = ReduceLROnPlateau(optimizer,
+        patience=cfg.TRAIN.SCHEDULER_PATIENCE)
 
     print("# Start training #")
     for epoch in range(num_epochs):
@@ -151,7 +155,9 @@ def train_model(model, train_loader, valid_loader, device,
         # Initialize values for this epoch.
         train_loss, train_n_iter = 0, 0
         valid_loss, valid_n_iter = 0, 0
+        train_len_correct, train_seq_correct = 0, 0
         valid_len_correct, valid_seq_correct = 0, 0
+        train_n_samples = 0
         valid_n_samples = 0
 
         # Train data.
@@ -184,6 +190,17 @@ def train_model(model, train_loader, valid_loader, device,
             # Statistics
             train_loss += loss.item()
             train_n_iter += 1
+
+            # Length predictions.
+            _, len_pred = torch.max(output_len.data, 1)
+            train_len_mask = (len_pred == target_len).cpu().numpy()
+            train_len_correct += np.sum(train_len_mask)
+
+            # Sequence predictions.
+            train_seq_correct += count_correct_sequences(
+                output_seq, target_seq, train_len_mask)
+
+            train_n_samples += target_len.size(0)
 
         # Validation data.
         model = model.eval()
@@ -224,15 +241,20 @@ def train_model(model, train_loader, valid_loader, device,
 
         train_loss_history.append(train_loss)
         valid_loss_history.append(valid_loss)
+
+        train_len_acc = train_len_correct / train_n_samples
+        train_seq_acc = train_seq_correct / train_n_samples
         valid_len_acc = valid_len_correct / valid_n_samples
         valid_seq_acc = valid_seq_correct / valid_n_samples
 
-
         # For reporting purposes.
         loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss,valid_loss)
-        acc_msg = 'Valid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
+        train_acc_msg = 'Train Acc (len/seq)=[{:.4f} {:.4f}]'.format(
+            train_len_acc, train_seq_acc)
+        valid_acc_msg = 'Valid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
             valid_len_acc, valid_seq_acc)
-        print('\t[{}/{}] {} {}'.format(epoch+1, num_epochs, loss_msg, acc_msg))
+        print('\t[{}/{}] {} {} {}'.format(
+            epoch+1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
 
         # Early stopping on best sequence accuracy.
         if valid_seq_acc > valid_best_accuracy:
