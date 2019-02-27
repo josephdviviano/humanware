@@ -38,14 +38,14 @@ class Loss():
 
         for i in range(len(output_seq)):
 
+            # Set -1s to 10 (new class that denotes no number)
+            clean_targets = target_seq[:, i].clone()
+            clean_targets[clean_targets == -1] = 10
+
             # Keep track of -1s: numbers that don't exist in ground truth.
-            target_mask = target_seq[:, i].clone()
+            target_mask = clean_targets.clone()
             target_mask[target_mask >= 0] = 1
             target_mask[target_mask <= 0] = 0
-
-            # Set -1s to 0 so that we don't break the call to softmax.
-            clean_targets = target_seq[:, i].clone()
-            clean_targets[clean_targets == -1] = 0
 
             # Zero any loss that is not in the target_mask, then average.
             losses = self.seq_loss(output_seq[i], clean_targets)
@@ -71,13 +71,14 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask):
     for i in range(len(output_seq)):
 
         # Keep track of -1s: numbers that don't exist in ground truth.
-        target_mask = target_seq[:, i].clone()
+        these_targets = target_seq[:, i].clone()
+
+        target_mask = these_targets.clone()
         target_mask[target_mask >= 0] = 1
         target_mask[target_mask <= 0] = 0
 
-        # Get int representation of predictions and targets.
+        # Get int representation of predictions.
         _, seq_preds = torch.max(output_seq[i].data, 1)
-        these_targets = target_seq[:, i].clone()
 
         # Convert house numbers to arrays of strings (also, numpy).
         seq_preds = seq_preds.cpu().numpy().astype(np.str)
