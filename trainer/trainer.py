@@ -132,15 +132,16 @@ def train_model(model, train_loader, valid_loader, device,
     train_loss_history, valid_loss_history = [], []
     valid_accuracy_history = []
     valid_best_accuracy = 0
+    best_epoch = 0
     valid_loss = 10000 # Initial value.
 
     multi_loss = Loss()
 
-    #optimizer = torch.optim.SGD(
-    #    model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM,
-    #    weight_decay=cfg.TRAIN.L2)
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=cfg.TRAIN.LR, weight_decay=cfg.TRAIN.L2)
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM,
+        weight_decay=cfg.TRAIN.L2)
+    #optimizer = torch.optim.Adam(
+    #    model.parameters(), lr=cfg.TRAIN.LR, weight_decay=cfg.TRAIN.L2)
 
     scheduler = ReduceLROnPlateau(optimizer,
         patience=cfg.TRAIN.SCHEDULER_PATIENCE)
@@ -256,6 +257,8 @@ def train_model(model, train_loader, valid_loader, device,
         print('\t[{}/{}] {} {} {}'.format(
             epoch+1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
 
+        valid_accuracy_history.append(valid_seq_acc)
+
         # Early stopping on best sequence accuracy.
         if valid_seq_acc > valid_best_accuracy:
             valid_best_accuracy = valid_seq_acc
@@ -263,7 +266,12 @@ def train_model(model, train_loader, valid_loader, device,
             print('Checkpointing new model...\n')
             model_filename = output_dir + '/checkpoint.pth'
             torch.save(model, model_filename)
-        valid_accuracy_history.append(valid_seq_acc)
+
+        # Patience stop training after n epochs of no improvement.
+        elif epoch+1 - cfg.TRAIN.EARLY_STOPPING_PATIENCE == best_epoch:
+            print('No improvement in valid loss in {} epochs, stopping'.format(
+                cfg.TRAIN.EARLY_STOPPING_PATIENCE))
+            break
 
     time_elapsed = time.time() - since
 
