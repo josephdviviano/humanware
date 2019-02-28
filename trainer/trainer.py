@@ -103,7 +103,7 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask):
     return(n_correct)
 
 
-def train_model(model, train_loader, valid_loader, device,
+def train_model(model, optimizer, train_loader, valid_loader, device,
                 num_epochs=cfg.TRAIN.NUM_EPOCHS, lr=cfg.TRAIN.LR,
                 output_dir=None):
     """
@@ -129,19 +129,15 @@ def train_model(model, train_loader, valid_loader, device,
     """
     since = time.time()
     model = model.to(device)
-    train_loss_history, valid_loss_history = [], []
-    valid_accuracy_history = []
+
+    history = {'train': {'acc': [], 'loss': []},
+               'valid': {'acc': [], 'loss': []}}
+
     valid_best_accuracy = 0
     best_epoch = 0
     valid_loss = 10000 # Initial value.
 
     multi_loss = Loss()
-
-    optimizer = torch.optim.SGD(
-        model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM,
-        weight_decay=cfg.TRAIN.L2)
-    #optimizer = torch.optim.Adam(
-    #    model.parameters(), lr=cfg.TRAIN.LR, weight_decay=cfg.TRAIN.L2)
 
     scheduler = ReduceLROnPlateau(optimizer,
         patience=cfg.TRAIN.SCHEDULER_PATIENCE)
@@ -239,29 +235,29 @@ def train_model(model, train_loader, valid_loader, device,
         # Calculate final values
         train_loss /= train_n_iter
         valid_loss /= valid_n_iter
-
-        train_loss_history.append(train_loss)
-        valid_loss_history.append(valid_loss)
-
         train_len_acc = train_len_correct / train_n_samples
         train_seq_acc = train_seq_correct / train_n_samples
         valid_len_acc = valid_len_correct / valid_n_samples
         valid_seq_acc = valid_seq_correct / valid_n_samples
 
-        # For reporting purposes.
-        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss,valid_loss)
-        train_acc_msg = 'Train Acc (len/seq)=[{:.4f} {:.4f}]'.format(
-            train_len_acc, train_seq_acc)
-        valid_acc_msg = 'Valid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
-            valid_len_acc, valid_seq_acc)
-        print('\t[{}/{}] {} {} {}'.format(
-            epoch+1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
+        history['train']['loss'].append(train_loss)
+        history['valid']['loss'].append(valid_loss)
+        history['train']['acc'].append(train_seq_acc)
+        history['valid']['acc'].append(valid_seq_acc)
 
-        valid_accuracy_history.append(valid_seq_acc)
+        # For reporting purposes.
+        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss, valid_loss)
+        len_acc_msg = 'Len Acc (t/v)=[{:.4f} {:.4f}]'.format(
+            train_len_acc, valid_len_acc)
+        seq_acc_msg = 'Seq Acc (t/v)=[{:.4f} {:.4f}]'.format(
+            train_seq_acc, valid_seq_acc)
+        print('\t[{}/{}] {} {} {}'.format(
+            epoch+1, num_epochs, loss_msg, len_acc_msg, seq_acc_msg))
 
         # Early stopping on best sequence accuracy.
         if valid_seq_acc > valid_best_accuracy:
             valid_best_accuracy = valid_seq_acc
+            best_epoch = epoch+1
             best_model = copy.deepcopy(model)
             print('Checkpointing new model...\n')
             model_filename = output_dir + '/checkpoint.pth'
@@ -282,4 +278,16 @@ def train_model(model, train_loader, valid_loader, device,
     model_filename = output_dir + '/best_model.pth'
     torch.save(best_model, model_filename)
     print('Best model saved to :', model_filename)
+
+    results = {
+        'best_model': best_model,
+        'best_epoch': best_epoch,
+        'best_acc': valid_best_acc,
+        'time_elapsed': time_elapsed,
+        'last_epoch': epoch+1,
+        'history': history,
+        'optimizer': optimizer
+    }
+
+    return(results)
 
