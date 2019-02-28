@@ -133,20 +133,30 @@ if __name__ == '__main__':
         valid_split=cfg.TRAIN.VALID_SPLIT)
 
     # Define model architecture
-    # baseline_cnn = ConvNet(num_classes=7)
-    # baseline_cnn = BaselineCNN(num_classes=7)
-    # resnet18 = ResNet18(num_classes=7)
-    # vgg19 = VGG('VGG19', num_classes=7)
-    # baseline_cnn = BaselineCNN_dropout(num_classes=7, p=0.5)
-    deep_conv = DeepConv()
+    # mdl = ConvNet(num_classes=7)
+    # mdl = BaselineCNN(num_classes=7)
+    # mdl = ResNet18(num_classes=7)
+    # mdl = BaselineCNN_dropout(num_classes=7, p=cfg.TRAIN.DROPOUT)
+
+    # mdl = DeepConv(dropout=cfg.TRAIN.DROPOUT)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Device used: ", device)
 
-    train_model(deep_conv,
-                train_loader=train_loader,
-                valid_loader=valid_loader,
-                num_epochs=cfg.TRAIN.NUM_EPOCHS,
-                device=device,
-                output_dir=cfg.OUTPUT_DIR)
+    for lr in cfg.TRAIN.LR:
+        for l2 in cfg.TRAIN.L2:
+            for dropout in cfg.TRAIN.DROPOUT:
+
+                mdl = VGG('VGG19', dropout)
+                opt = torch.optim.SGD(mdl.parameters(),
+                    lr=lr, weight_decay=l2, momentum=cfg.TRAIN.MOM)
+                #opt = torch.optim.Adam(mdl.parameters(),
+                #   lr=lr, weight_decay=l2)
+
+                results = train_model(mdl, opt,
+                    train_loader=train_loader,
+                    valid_loader=valid_loader,
+                    num_epochs=cfg.TRAIN.NUM_EPOCHS,
+                    device=device,
+                    output_dir=cfg.OUTPUT_DIR)
 
