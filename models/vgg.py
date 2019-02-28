@@ -18,13 +18,22 @@ class VGG(nn.Module):
     def __init__(self, vgg_name, num_classes):
         super(VGG, self).__init__()
         self.features = self._make_layers(cfg[vgg_name])
-        self.classifier = nn.Linear(512, num_classes)
+        self._digit_length = nn.Linear(512, num_classes)
+        self._digit1 = nn.Linear(512, 10)
+        self._digit2 = nn.Linear(512, 10)
+        self._digit3 = nn.Linear(512, 10)
+        self._digit4 = nn.Linear(512, 10)
+        self._digit5 = nn.Linear(512, 10)
 
     def forward(self, x):
         out = self.features(x)
         out = out.view(out.size(0), -1)
-        out = self.classifier(out)
-        return out
+        length_logits, digits_logits = self._digit_length(out), [self._digit1(out),
+                                                               self._digit2(out),
+                                                               self._digit3(out),
+                                                               self._digit4(out),
+                                                               self._digit5(out)]
+        return length_logits, digits_logits
 
     def _make_layers(self, cfg):
         layers = []
