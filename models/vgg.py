@@ -15,10 +15,10 @@ cfg = {
 
 
 class VGG(nn.Module):
-    def __init__(self, vgg_name, num_classes):
+    def __init__(self, vgg_name, dropout=0.2):
         super(VGG, self).__init__()
-        self.features = self._make_layers(cfg[vgg_name])
-        self._digit_length = nn.Linear(512, num_classes)
+        self.features = self._make_layers(cfg[vgg_name], dropout)
+        self._digit_length = nn.Linear(512, 7)
         self._digit1 = nn.Linear(512, 10)
         self._digit2 = nn.Linear(512, 10)
         self._digit3 = nn.Linear(512, 10)
@@ -35,7 +35,7 @@ class VGG(nn.Module):
                                                                self._digit5(out)]
         return length_logits, digits_logits
 
-    def _make_layers(self, cfg):
+    def _make_layers(self, cfg, dropout):
         layers = []
         in_channels = 3
         for x in cfg:
@@ -47,6 +47,7 @@ class VGG(nn.Module):
                            nn.ReLU(inplace=True)]
                 in_channels = x
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
+        layers += [nn.Dropout(p=dropout)]
         return nn.Sequential(*layers)
 
 
