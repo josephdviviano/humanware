@@ -65,7 +65,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10):
+    def __init__(self, block, num_blocks, num_classes=7):
         super(ResNet, self).__init__()
         self.in_planes = 64
 
@@ -75,7 +75,12 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = nn.Linear(512 * block.expansion, num_classes)
+        self._digit_length = nn.Linear(512 * block.expansion, num_classes)
+        self._digit1 = nn.Linear(512 * block.expansion, 10)
+        self._digit2 = nn.Linear(512 * block.expansion, 10)
+        self._digit3 = nn.Linear(512 * block.expansion, 10)
+        self._digit4 = nn.Linear(512 * block.expansion, 10)
+        self._digit5 = nn.Linear(512 * block.expansion, 10)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
@@ -94,7 +99,12 @@ class ResNet(nn.Module):
         out = F.avg_pool2d(out, 4)
         out = out.view(out.size(0), -1)
         out = self.linear(out)
-        return out
+        length_logits, digits_logits = self._digit_length(out), [self._digit1(out),
+                                                                 self._digit2(out),
+                                                                 self._digit3(out),
+                                                                 self._digit4(out),
+                                                                 self._digit5(out)]
+        return length_logits, digits_logits
 
 
 def ResNet18(num_classes):
