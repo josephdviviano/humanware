@@ -135,9 +135,9 @@ if __name__ == '__main__':
     # Define model architecture
     # mdl = ConvNet(num_classes=7)
     # mdl = BaselineCNN(num_classes=7)
-    # mdl = ResNet18(num_classes=7)
+    mdl = ResNet18(num_classes=7)
     # mdl = BaselineCNN_dropout(num_classes=7, p=cfg.TRAIN.DROPOUT)
-
+    # mdl = VGG('VGG19', dropout)
     # mdl = DeepConv(dropout=cfg.TRAIN.DROPOUT)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -147,7 +147,6 @@ if __name__ == '__main__':
         for l2 in cfg.TRAIN.L2:
             for dropout in cfg.TRAIN.DROPOUT:
 
-                mdl = VGG('VGG19', dropout)
                 opt = torch.optim.SGD(mdl.parameters(),
                     lr=lr, weight_decay=l2, momentum=cfg.TRAIN.MOM)
                 #opt = torch.optim.Adam(mdl.parameters(),

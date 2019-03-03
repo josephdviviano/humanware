@@ -9,10 +9,9 @@ TRAIN:
   SAMPLE_SIZE: -1 # Number of samples to use (for debugging purposes), set to -1 to use the entire dataset
   BATCH_SIZE: 32
   NUM_EPOCHS: 500
-  LR: 0.001
-  L2: 0.01
-  DROPOUT: 0.5
+  LR: [0.001]
+  L2: [0.01]
+  DROPOUT: [0.5]
   MOM: 0.9
   SCHEDULER_PATIENCE: 10
   EARLY_STOPPING_PATIENCE: 25
-git
