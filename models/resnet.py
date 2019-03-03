@@ -98,7 +98,6 @@ class ResNet(nn.Module):
         out = self.layer4(out)
         out = F.avg_pool2d(out, 4)
         out = out.view(out.size(0), -1)
-        out = self.linear(out)
         length_logits, digits_logits = self._digit_length(out), [self._digit1(out),
                                                                  self._digit2(out),
                                                                  self._digit3(out),

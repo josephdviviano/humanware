@@ -5,7 +5,6 @@ Source: https://github.com/kuangliu/pytorch-cifar/blob/master/models/vgg.py
 import torch
 import torch.nn as nn
 
-
 cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -29,10 +28,10 @@ class VGG(nn.Module):
         out = self.features(x)
         out = out.view(out.size(0), -1)
         length_logits, digits_logits = self._digit_length(out), [self._digit1(out),
-                                                               self._digit2(out),
-                                                               self._digit3(out),
-                                                               self._digit4(out),
-                                                               self._digit5(out)]
+                                                                 self._digit2(out),
+                                                                 self._digit3(out),
+                                                                 self._digit4(out),
+                                                                 self._digit5(out)]
         return length_logits, digits_logits
 
     def _make_layers(self, cfg, dropout):

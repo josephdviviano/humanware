@@ -17,6 +17,7 @@ from utils.dataloader import prepare_dataloaders
 from utils.misc import mkdir_p
 from models.deepconv import DeepConv
 from models.vgg import VGG
+from models.resnet import *
 from trainer.trainer import train_model
 
 
