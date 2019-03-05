@@ -159,15 +159,14 @@ if __name__ == '__main__':
 
         mdl = VGG('VGG19', dropout)
         opt = torch.optim.SGD(mdl.parameters(),
-            lr=lr, weight_decay=l2, momentum=momentum)
+                              lr=lr, weight_decay=l2, momentum=momentum)
 
         results = train_model(mdl, opt,
-            train_loader=train_loader,
-            valid_loader=valid_loader,
-            num_epochs=cfg.TRAIN.NUM_EPOCHS,
-            device=device,
-            output_dir=cfg.OUTPUT_DIR)
+                              train_loader=train_loader,
+                              valid_loader=valid_loader,
+                              num_epochs=cfg.TRAIN.NUM_EPOCHS,
+                              device=device,
+                              output_dir=cfg.OUTPUT_DIR)
 
         # Update optimizer with best accuracy obtained.
         opt.tell(next_x, results['best_acc'])
-
