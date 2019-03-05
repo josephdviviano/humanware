@@ -57,6 +57,7 @@ class Loss():
 
         return(loss)
 
+
 def count_correct_sequences(output_seq, target_seq, valid_len_mask):
     """
     Sequence predictions. All elements in valid_len_mask that are
@@ -135,12 +136,12 @@ def train_model(model, optimizer, train_loader, valid_loader, device,
 
     valid_best_accuracy = 0
     best_epoch = 0
-    valid_loss = 10000 # Initial value.
+    valid_loss = 10000  # Initial value.
 
     multi_loss = Loss()
 
     scheduler = ReduceLROnPlateau(optimizer,
-        patience=cfg.TRAIN.SCHEDULER_PATIENCE)
+                                  patience=cfg.TRAIN.SCHEDULER_PATIENCE)
 
     print("# Start training #")
     for epoch in range(num_epochs):
@@ -290,4 +291,3 @@ def train_model(model, optimizer, train_loader, valid_loader, device,
     }
 
     return(results)
-

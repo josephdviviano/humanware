@@ -1,19 +1,17 @@
-import argparse
-from pathlib import Path
+from utils.dataloader import prepare_dataloaders
 
+from pathlib import Path
+from tqdm import tqdm
+import argparse
+import random
+import sys
+import time
+
+from sklearn.metrics import confusion_matrix
 import numpy as np
 import torch
 
-import time
-
-from tqdm import tqdm
-import random
-from sklearn.metrics import confusion_matrix
-
-import sys
 sys.path.append('..')
-
-from utils.dataloader import prepare_dataloaders
 
 
 def eval_model(dataset_dir, metadata_filename, model_filename,
@@ -116,12 +114,11 @@ def eval_model(dataset_dir, metadata_filename, model_filename,
 
 if __name__ == "__main__":
 
-    ###### DO NOT MODIFY THIS SECTION ######
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--metadata_filename", type=str, default='')
-    # metadata_filename will be the absolute path to the directory to be used for
-    # evaluation.
+    # metadata_filename will be the absolute path to the directory to
+    # be used for evaluation.
 
     parser.add_argument("--dataset_dir", type=str, default='')
     # dataset_dir will be the absolute path to the directory to be used for
@@ -135,22 +132,18 @@ if __name__ == "__main__":
     metadata_filename = args.metadata_filename
     dataset_dir = args.dataset_dir
     results_dir = args.results_dir
-    #########################################
 
-
-    ###### MODIFY THIS SECTION ######
+    # MODIFY THIS SECTION
     # Put your group name here
     group_name = "b1phut_baseline"
 
-    model_filename = '/rap/jvb-000-aa/COURS2019/etudiants/submissions/b1phut_baseline/model/vgg19_momentum.pth'
+    model_filename = '/rap/jvb-000-aa/COURS2019/etudiants/submissions/' \
+                     'b1phut_baseline/model/vgg19_momentum.pth'
     # model_filename should be the absolute path on shared disk to your
     # best model. You need to ensure that they are available to evaluators on
     # Helios.
 
-    #################################
-
-
-    ###### DO NOT MODIFY THIS SECTION ######
+    # DO NOT MODIFY THIS SECTION
     print("\nEvaluating results ... ")
     y_pred = eval_model(dataset_dir, metadata_filename, model_filename)
 
@@ -161,4 +154,3 @@ if __name__ == "__main__":
 
     print('\nSaving results to ', results_fname.absolute())
     np.savetxt(results_fname, y_pred, fmt='%.1f')
-    #########################################

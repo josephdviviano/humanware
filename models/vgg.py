@@ -7,9 +7,12 @@ import torch.nn as nn
 
 cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+    'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M',
+              512, 512, 'M', 512, 512, 'M'],
+    'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M',
+              512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M',
+              512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
 
@@ -17,21 +20,21 @@ class VGG(nn.Module):
     def __init__(self, vgg_name, dropout=0.2):
         super(VGG, self).__init__()
         self.features = self._make_layers(cfg[vgg_name], dropout)
-        self._digit_length = nn.Linear(512, 7)
-        self._digit1 = nn.Linear(512, 10)
-        self._digit2 = nn.Linear(512, 10)
-        self._digit3 = nn.Linear(512, 10)
-        self._digit4 = nn.Linear(512, 10)
-        self._digit5 = nn.Linear(512, 10)
+        self._d_length = nn.Linear(512, 7)
+        self._d1 = nn.Linear(512, 10)
+        self._d2 = nn.Linear(512, 10)
+        self._d3 = nn.Linear(512, 10)
+        self._d4 = nn.Linear(512, 10)
+        self._d5 = nn.Linear(512, 10)
 
     def forward(self, x):
         out = self.features(x)
         out = out.view(out.size(0), -1)
-        length_logits, digits_logits = self._digit_length(out), [self._digit1(out),
-                                                                 self._digit2(out),
-                                                                 self._digit3(out),
-                                                                 self._digit4(out),
-                                                                 self._digit5(out)]
+        length_logits, digits_logits = self._d_length(out), [self._d1(out),
+                                                             self._d2(out),
+                                                             self._d3(out),
+                                                             self._d4(out),
+                                                             self._d5(out)]
         return length_logits, digits_logits
 
     def _make_layers(self, cfg, dropout):
@@ -55,5 +58,3 @@ def test():
     x = torch.randn(2, 3, 32, 32)
     y = net(x)
     print(y.size())
-
-# test()
