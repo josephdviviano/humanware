@@ -1,4 +1,4 @@
-CONFIG_NAME: 'DeepConv'
+CONFIG_NAME: 'VGG19'
 DATASET_NAME: SVHN
 SEED: 1234
 
@@ -9,9 +9,10 @@ TRAIN:
   SAMPLE_SIZE: -1 # Number of samples to use (for debugging purposes), set to -1 to use the entire dataset
   BATCH_SIZE: 32
   NUM_EPOCHS: 500
-  LR: 0.001
-  L2: 0.01
-  DROPOUT: 0.5
-  MOM: 0.9
+  NUM_HYPER_LOOP: 25
+  LR: [0.0001, 0.1]
+  L2: [0.0001, 0.1]
+  DROPOUT: [0.5, 0.9]
+  MOM: [0.0, 0.5]
   SCHEDULER_PATIENCE: 10
   EARLY_STOPPING_PATIENCE: 25

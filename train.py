@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from __future__ import print_function
 import os
 import sys
@@ -11,6 +13,7 @@ import random
 from shutil import copyfile
 
 import torch
+from skopt import Optimizer
 
 from utils.config import cfg, cfg_from_file
 from utils.dataloader import prepare_dataloaders
@@ -18,7 +21,6 @@ from utils.misc import mkdir_p
 from models.deepconv import DeepConv
 from models.vgg import VGG
 from trainer.trainer import train_model
-
 
 dir_path = (os.path.abspath(os.path.join(os.path.realpath(__file__), './.')))
 sys.path.append(dir_path)
@@ -59,7 +61,7 @@ def parse_args():
                         your training will be saved.''')
 
     args = parser.parse_args()
-    return args
+    return(args)
 
 
 def load_config():
@@ -90,7 +92,6 @@ def load_config():
 
     print('Data dir: {}'.format(cfg.INPUT_DIR))
     print('Output dir: {}'.format(cfg.OUTPUT_DIR))
-
     print('Using config:')
     pprint.pprint(cfg)
 
@@ -106,6 +107,8 @@ def fix_seed(seed):
 
     '''
     print('pytorch/random seed: {}'.format(seed))
+
+    # Numpy, python, pytorch (cpu), pytorch (gpu).
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
@@ -137,26 +140,32 @@ if __name__ == '__main__':
     # mdl = BaselineCNN(num_classes=7)
     # mdl = ResNet18(num_classes=7)
     # mdl = BaselineCNN_dropout(num_classes=7, p=cfg.TRAIN.DROPOUT)
-
     # mdl = DeepConv(dropout=cfg.TRAIN.DROPOUT)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Device used: ", device)
 
-    for lr in cfg.TRAIN.LR:
-        for l2 in cfg.TRAIN.L2:
-            for dropout in cfg.TRAIN.DROPOUT:
+    # Baysian hyperparameter optimization: [lr, l2, momentum, dropout]
+    opt = Optimizer(
+        [cfg.TRAIN.LR, cfg.TRAIN.L2, cfg.TRAIN.MOM, cfg.TRAIN.DROPOUT],
+        "GP", acq_optimizer="sampling", random_state=cfg.SEED
+    )
 
-                mdl = VGG('VGG19', dropout)
-                opt = torch.optim.SGD(mdl.parameters(),
-                    lr=lr, weight_decay=l2, momentum=cfg.TRAIN.MOM)
-                #opt = torch.optim.Adam(mdl.parameters(),
-                #   lr=lr, weight_decay=l2)
+    for i in range(cfg.TRAIN.NUM_HYPER_LOOP):
 
-                results = train_model(mdl, opt,
-                    train_loader=train_loader,
-                    valid_loader=valid_loader,
-                    num_epochs=cfg.TRAIN.NUM_EPOCHS,
-                    device=device,
-                    output_dir=cfg.OUTPUT_DIR)
+        lr, l2, momentum, dropout = opt.ask()
+
+        mdl = VGG('VGG19', dropout)
+        opt = torch.optim.SGD(mdl.parameters(),
+            lr=lr, weight_decay=l2, momentum=momentum)
+
+        results = train_model(mdl, opt,
+            train_loader=train_loader,
+            valid_loader=valid_loader,
+            num_epochs=cfg.TRAIN.NUM_EPOCHS,
+            device=device,
+            output_dir=cfg.OUTPUT_DIR)
+
+        # Update optimizer with best accuracy obtained.
+        opt.tell(next_x, results['best_acc'])
 
