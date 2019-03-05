@@ -20,6 +20,7 @@ from utils.dataloader import prepare_dataloaders
 from utils.misc import mkdir_p
 from models.deepconv import DeepConv
 from models.vgg import VGG
+from models.resnet import *
 from trainer.trainer import train_model
 
 dir_path = (os.path.abspath(os.path.join(os.path.realpath(__file__), './.')))
@@ -140,6 +141,7 @@ if __name__ == '__main__':
     # mdl = BaselineCNN(num_classes=7)
     # mdl = ResNet18(num_classes=7)
     # mdl = BaselineCNN_dropout(num_classes=7, p=cfg.TRAIN.DROPOUT)
+    # mdl = VGG('VGG19', dropout)
     # mdl = DeepConv(dropout=cfg.TRAIN.DROPOUT)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
