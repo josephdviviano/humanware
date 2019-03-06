@@ -43,17 +43,28 @@ def parse_args():
                         help='''optional config file,
                              e.g. config/base_config.yml''')
 
+    parser.add_argument("--dataset_dir", type=str,
+                        default='data/SVHN/train/',
+                        help='''dataset_dir will be the absolute path
+                                to the directory to be used for
+                                training''')
+
     parser.add_argument("--metadata_filename", type=str,
                         default='data/SVHN/train_metadata.pkl',
                         help='''metadata_filename will be the absolute
                                 path to the directory to be used for
                                 training.''')
 
-    parser.add_argument("--dataset_dir", type=str,
-                        default='data/SVHN/train/',
-                        help='''dataset_dir will be the absolute path
-                                to the directory to be used for
-                                training''')
+    parser.add_argument("--extra_dir", type=str,
+                        default='data/SVHN/extra',
+                        help='''extra_data contains additional training
+                                examples.''')
+
+    parser.add_argument("--extra_metadata_filename", type=str,
+                        default='data/SVHN/extra_metadata.pkl',
+                        help='''extra_metadata_filename will be absoloute
+                                path to the directory of the extra training
+                                metadata.''')
 
     parser.add_argument("--results_dir", type=str,
                         default='results/',
@@ -83,7 +94,9 @@ def load_config():
 
     cfg.TIMESTAMP = timestamp
     cfg.INPUT_DIR = args.dataset_dir
+    cfg.EXTRA_DIR = args.extra_dir
     cfg.METADATA_FILENAME = args.metadata_filename
+    cfg.EXTRA_METADATA_FILENAME = args.metadata_filename
     cfg.OUTPUT_DIR = os.path.join(
         args.results_dir,
         '%s_%s_%s' % (cfg.DATASET_NAME, cfg.CONFIG_NAME, timestamp))
@@ -121,13 +134,13 @@ def fix_seed(seed):
 
 if __name__ == '__main__':
 
-    # Load the config file
+    # Load the config file.
     load_config()
 
-    # Make the results reproductible
+    # Make the results reproductible.
     fix_seed(cfg.SEED)
 
-    # Prepare data
+    # Prepare data.
     (train_loader, valid_loader) = prepare_dataloaders(
         dataset_split=cfg.TRAIN.DATASET_SPLIT,
         dataset_path=cfg.INPUT_DIR,
@@ -135,6 +148,18 @@ if __name__ == '__main__':
         batch_size=cfg.TRAIN.BATCH_SIZE,
         sample_size=cfg.TRAIN.SAMPLE_SIZE,
         valid_split=cfg.TRAIN.VALID_SPLIT)
+
+    if cfg.TRAIN.DATASET_EXTRA:
+        extra_loader = prepare_dataloaders(
+            dataset_split='extra',
+            dataset_path=cfg.EXTRA_DIR,
+            metadata_filename=cfg.EXTRA_METADATA_FILENAME,
+            batch_size = cfg.TRAIN.BATCH_SIZE,
+            sample_size = cfg.TRAIN.SAMPLE_SIZE,
+            valid_split = cfg.TRAIN.VALID_SPLIT)
+    else:
+        extra_loader = None
+
 
     # Define model architecture
     # mdl = ConvNet(num_classes=7)
@@ -148,7 +173,7 @@ if __name__ == '__main__':
     print("Device used: ", device)
 
     # Baysian hyperparameter optimization: [lr, l2, momentum, dropout]
-    opt = Optimizer(
+    hp_opt = Optimizer(
         [cfg.TRAIN.LR, cfg.TRAIN.L2, cfg.TRAIN.MOM, cfg.TRAIN.DROPOUT],
         "GP", acq_optimizer="sampling", random_state=cfg.SEED
     )
@@ -158,15 +183,18 @@ if __name__ == '__main__':
         lr, l2, momentum, dropout = opt.ask()
 
         mdl = VGG('VGG19', dropout)
-        opt = torch.optim.SGD(mdl.parameters(),
+        hp_opt = torch.optim.SGD(mdl.parameters(),
                               lr=lr, weight_decay=l2, momentum=momentum)
+
+        import IPython; IPython.embed()
 
         results = train_model(mdl, opt,
                               train_loader=train_loader,
                               valid_loader=valid_loader,
+                              extra_loader=extra_loader,
                               num_epochs=cfg.TRAIN.NUM_EPOCHS,
                               device=device,
                               output_dir=cfg.OUTPUT_DIR)
 
         # Update optimizer with best accuracy obtained.
-        opt.tell(next_x, results['best_acc'])
+        hp_opt.tell(next_x, results['best_acc'])
