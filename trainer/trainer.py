@@ -11,6 +11,7 @@ import numpy as np
 from scipy.stats.mstats import gmean
 from utils.config import cfg
 
+from tensorboardX import SummaryWriter
 
 class Loss():
     """
@@ -116,7 +117,7 @@ def train_model(model, train_loader, valid_loader, device,
     train_loader : obj
         The train data loader.
     valid_loader : obj
-        The validation data loader.
+    ``    The validation data loader.
     device : str
         The type of device to use ('cpu' or 'gpu').
     num_eopchs : int
@@ -136,6 +137,14 @@ def train_model(model, train_loader, valid_loader, device,
 
     multi_loss = Loss()
 
+    tb = SummaryWriter('runs')
+    #tb.add_scalars('Initialization', {'Learning rate': cfg.TRAIN.LR,
+    #                                  'Weight decay': cfg.TRAIN.L2,
+    #                                  'Max epochs': cfg.TRAIN.NUM_EPOCHS,
+    #                                  'Patience': cfg.TRAIN.SCHEDULER_PATIENCE,
+    #                                  'Begin': since})
+    #tb.add_text('Device',device)
+
     #optimizer = torch.optim.SGD(
     #    model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM,
     #    weight_decay=cfg.TRAIN.L2)
@@ -143,7 +152,7 @@ def train_model(model, train_loader, valid_loader, device,
         model.parameters(), lr=cfg.TRAIN.LR, weight_decay=cfg.TRAIN.L2)
 
     scheduler = ReduceLROnPlateau(optimizer,
-        patience=cfg.TRAIN.SCHEDULER_PATIENCE)
+                                  patience=cfg.TRAIN.SCHEDULER_PATIENCE)
 
     print("# Start training #")
     for epoch in range(num_epochs):
@@ -151,7 +160,7 @@ def train_model(model, train_loader, valid_loader, device,
         # Reduces LR by factor of 10 if we don't beat best valid_loss in
         # cfg.TRAIN.SCHEDULER_PATIENCE epochs.
         scheduler.step(valid_loss)
-
+        
         # Initialize values for this epoch.
         train_loss, train_n_iter = 0, 0
         valid_loss, valid_n_iter = 0, 0
@@ -255,6 +264,22 @@ def train_model(model, train_loader, valid_loader, device,
             valid_len_acc, valid_seq_acc)
         print('\t[{}/{}] {} {} {}'.format(
             epoch+1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
+        #tb.add_scalars('Training',{'LRbest': scheduler.best,
+        #                           'LRlastepoch': scheduler.last_epoch,
+        #                           'LRisbetter': scheduler.is_better,
+        #                           'Train len accuracy': train_len_acc,
+        #                          'Train seq accuracy': train_seq_acc,
+        #                           'Valid len accuracy': valid_len_acc,
+        #                           'Valid seq accuracy': valid_seq_acc},
+        #                global_step=epoch+1)
+        # print(scheduler.state_dict('step'))
+        tb.add_scalar('LR', optimizer.param_groups[-1]['lr'], global_step=epoch+1)
+        tb.add_scalars('Length', {'Train len accuracy': train_len_acc,
+                                  'Valid len accuracy': valid_len_acc},
+                       global_step=epoch+1)
+        tb.add_scalars('Sequence', {'Train seq accuracy': train_seq_acc,
+                                    'Valid seq accuracy': valid_seq_acc},
+                       global_step=epoch+1)
 
         # Early stopping on best sequence accuracy.
         if valid_seq_acc > valid_best_accuracy:
