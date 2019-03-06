@@ -264,15 +264,6 @@ def train_model(model, train_loader, valid_loader, device,
             valid_len_acc, valid_seq_acc)
         print('\t[{}/{}] {} {} {}'.format(
             epoch+1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
-        #tb.add_scalars('Training',{'LRbest': scheduler.best,
-        #                           'LRlastepoch': scheduler.last_epoch,
-        #                           'LRisbetter': scheduler.is_better,
-        #                           'Train len accuracy': train_len_acc,
-        #                          'Train seq accuracy': train_seq_acc,
-        #                           'Valid len accuracy': valid_len_acc,
-        #                           'Valid seq accuracy': valid_seq_acc},
-        #                global_step=epoch+1)
-        # print(scheduler.state_dict('step'))
         tb.add_scalar('LR', optimizer.param_groups[-1]['lr'], global_step=epoch+1)
         tb.add_scalars('Length', {'Train len accuracy': train_len_acc,
                                   'Valid len accuracy': valid_len_acc},
