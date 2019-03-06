@@ -1,6 +1,10 @@
 import os
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 from PIL import Image
+
 from torch.utils import data
 
 import numpy as np
@@ -133,13 +137,13 @@ def prepare_dataloaders(dataset_split,
 
     Returns
     -------
-    if dataset_split in ['train', 'extra']:
+    if dataset_split in ['train']:
         train_loader: torch.utils.DataLoader
             Dataloader containing training data.
         valid_loader: torch.utils.DataLoader
             Dataloader containing validation data.
 
-    if dataset_split in ['test']:
+    if dataset_split in ['test', 'extra']:
         test_loader: torch.utils.DataLoader
             Dataloader containing test data.
 
@@ -174,7 +178,7 @@ def prepare_dataloaders(dataset_split,
     if sample_size != -1:
         indices = indices[:sample_size]
 
-    if dataset_split in ['train', 'extra']:
+    if dataset_split in ['train']:
 
         train_idx = indices[:round(valid_split * len(indices))]
         valid_idx = indices[round(valid_split * len(indices)):]
@@ -197,7 +201,7 @@ def prepare_dataloaders(dataset_split,
 
         return train_loader, valid_loader
 
-    elif dataset_split in ['test']:
+    elif dataset_split in ['test', 'extra']:
 
         test_sampler = torch.utils.data.SequentialSampler(indices)
 
@@ -209,3 +213,4 @@ def prepare_dataloaders(dataset_split,
                                  sampler=test_sampler)
 
         return test_loader
+
