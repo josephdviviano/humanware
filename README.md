@@ -14,9 +14,9 @@ case of a mobile application), etc.
 
 ## Quick usage on Helios
 
-To run the code on Helios, you can use the scripts in `scrips/helios/train_on_helios.sh`. 
+To run the code on Helios, you can use the scripts in `scrips/helios/train_on_helios.sh`.
 
-You can run this directly from the login node using msub: 
+You can run this directly from the login node using msub:
 
 `msub -A $GROUP_RAP -l feature=k80,nodes=1:gpus=1,walltime=2:00:00 train_on_helios.sh`
 
@@ -40,3 +40,7 @@ See [ipdb](https://pypi.org/project/ipdb/) for more informations.
 ## Data
 For more information about the data used and its format, consult the `README`
 in the `data/` directory.
+
+## Includes
+`bbopt` cloned on March 1st 2019.
+
