@@ -104,8 +104,63 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask):
     return(n_correct)
 
 
-def train_model(model, optimizer, train_loader, valid_loader, device,
-                num_epochs=cfg.TRAIN.NUM_EPOCHS, lr=cfg.TRAIN.LR,
+def run_epoch(model, loader, optimizer, lossfxn, device, train=True):
+
+        # Initialize values for this epoch.
+        mean_loss, n_iter, n_samples, len_correct, seq_correct = 0, 0, 0, 0, 0
+
+        # Train data.
+        model = model.train()
+
+        for batch_idx, batch in enumerate(tqdm(loader)):
+
+            # Get the inputs
+            inputs, targets = batch['image'], batch['target']
+
+            inputs = inputs.to(device)
+            target_len = targets[:, 0].long().to(device)
+            target_seq = targets[:, 1:].long().to(device)
+
+            # Zero the gradient buffer
+            if train:
+                optimizer.zero_grad()
+
+            # Forward
+            output_len, output_seq = model(inputs)
+            loss = lossfxn.calc(output_len, target_len, output_seq, target_seq)
+
+            # Backward
+            if train:
+                loss.backward()
+                optimizer.step()
+
+            # Statistics
+            mean_loss += loss.item()
+            n_iter += 1
+
+            # Length predictions.
+            _, len_pred = torch.max(output_len.data, 1)
+            len_mask = (len_pred == target_len).cpu().numpy()
+            len_correct += np.sum(train_len_mask)
+
+            # Sequence predictions.
+            seq_correct += count_correct_sequences(output_seq,
+                                                   target_seq, len_mask)
+
+            n_samples += target_len.size(0)
+
+        # Final stats.
+        mean_loss /= n_iter
+        len_acc = len_correct / n_samples
+        seq_acc = seq_correct / n_samples
+
+        results = {'loss': mean_loss, 'len_acc': len_acc, 'seq_acc': seq_acc}
+
+        return(results)
+
+
+def train_model(model, optimizer, train_loader, valid_loader, extra_loader,
+                device, num_epochs=cfg.TRAIN.NUM_EPOCHS, lr=cfg.TRAIN.LR,
                 output_dir=None):
     """
     Training loop.
@@ -118,6 +173,8 @@ def train_model(model, optimizer, train_loader, valid_loader, device,
         The train data loader.
     valid_loader : obj
         The validation data loader.
+    extra_loader : obj
+        Additional training data loader. Can be None.
     device : str
         The type of device to use ('cpu' or 'gpu').
     num_eopchs : int
@@ -150,114 +207,42 @@ def train_model(model, optimizer, train_loader, valid_loader, device,
         # cfg.TRAIN.SCHEDULER_PATIENCE epochs.
         scheduler.step(valid_loss)
 
-        # Initialize values for this epoch.
-        train_loss, train_n_iter = 0, 0
-        valid_loss, valid_n_iter = 0, 0
-        train_len_correct, train_seq_correct = 0, 0
-        valid_len_correct, valid_seq_correct = 0, 0
-        train_n_samples = 0
-        valid_n_samples = 0
+        train_results = run_epoch(model,
+                                  train_loader,
+                                  optimizer,
+                                  multi_loss,
+                                  device,
+                                  train=True)
 
-        # Train data.
-        model = model.train()
+        if extra_loader != None:
+            _ = run_epoch(model, extra_loader,
+                          optimizer, multi_loss, device, train=True)
 
-        for batch_idx, batch in enumerate(tqdm(train_loader)):
+        valid_results = run_epoch(model,
+                                  valid_loader,
+                                  optimizer,
+                                  multi_loss,
+                                  device,
+                                  train=False)
 
-            # Get the inputs
-            inputs, targets = batch['image'], batch['target']
-
-            inputs = inputs.to(device)
-            target_len = targets[:, 0].long().to(device)
-            target_seq = targets[:, 1:].long().to(device)
-
-            # Zero the gradient buffer
-            optimizer.zero_grad()
-
-            # Forward
-            output_len, output_seq = model(inputs)
-
-            loss = multi_loss.calc(
-                output_len, target_len, output_seq, target_seq)
-
-            # Backward
-            loss.backward()
-
-            # Optimize
-            optimizer.step()
-
-            # Statistics
-            train_loss += loss.item()
-            train_n_iter += 1
-
-            # Length predictions.
-            _, len_pred = torch.max(output_len.data, 1)
-            train_len_mask = (len_pred == target_len).cpu().numpy()
-            train_len_correct += np.sum(train_len_mask)
-
-            # Sequence predictions.
-            train_seq_correct += count_correct_sequences(
-                output_seq, target_seq, train_len_mask)
-
-            train_n_samples += target_len.size(0)
-
-        # Validation data.
-        model = model.eval()
-
-        for batch_idx, batch in enumerate(tqdm(valid_loader)):
-
-            # Get the inputs.
-            inputs, targets = batch['image'], batch['target']
-
-            inputs = inputs.to(device)
-            target_len = targets[:, 0].long().to(device)
-            target_seq = targets[:, 1:].long().to(device)
-
-            # Forward.
-            output_len, output_seq = model(inputs)
-
-            loss = multi_loss.calc(
-                output_len, target_len, output_seq, target_seq)
-
-            # Statistics
-            valid_loss += loss.item()
-            valid_n_iter += 1
-
-            # Length predictions.
-            _, len_pred = torch.max(output_len.data, 1)
-            valid_len_mask = (len_pred == target_len).cpu().numpy()
-            valid_len_correct += np.sum(valid_len_mask)
-
-            # Sequence predictions.
-            valid_seq_correct += count_correct_sequences(
-                output_seq, target_seq, valid_len_mask)
-
-            valid_n_samples += target_len.size(0)
-
-        # Calculate final values
-        train_loss /= train_n_iter
-        valid_loss /= valid_n_iter
-        train_len_acc = train_len_correct / train_n_samples
-        train_seq_acc = train_seq_correct / train_n_samples
-        valid_len_acc = valid_len_correct / valid_n_samples
-        valid_seq_acc = valid_seq_correct / valid_n_samples
-
-        history['train']['loss'].append(train_loss)
-        history['valid']['loss'].append(valid_loss)
-        history['train']['acc'].append(train_seq_acc)
-        history['valid']['acc'].append(valid_seq_acc)
+        history['train']['loss'].append(train_results['loss'])
+        history['valid']['loss'].append(valid_results['loss'])
+        history['train']['acc'].append(train_results['seq_acc'])
+        history['valid']['acc'].append(valid_results['seq_acc'])
 
         # For reporting purposes.
-        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss, valid_loss)
+        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_results['loss'],
+                                                       valid_results['loss'])
         len_acc_msg = 'Len Acc (t/v)=[{:.4f} {:.4f}]'.format(
-            train_len_acc, valid_len_acc)
+            train_results['len_acc'], valid_results['len_acc'])
         seq_acc_msg = 'Seq Acc (t/v)=[{:.4f} {:.4f}]'.format(
-            train_seq_acc, valid_seq_acc)
+            train_results['seq_acc'], valid_results['seq_acc'])
         print('\t[{}/{}] {} {} {}'.format(
             epoch+1, num_epochs, loss_msg, len_acc_msg, seq_acc_msg))
 
         # Early stopping on best sequence accuracy.
-        if valid_seq_acc > valid_best_accuracy:
-            valid_best_accuracy = valid_seq_acc
+        if valid_results['seq_acc'] > valid_best_accuracy:
+            valid_best_accuracy = valid_results['seq_acc']
             best_epoch = epoch+1
             best_model = copy.deepcopy(model)
             print('Checkpointing new model...\n')
