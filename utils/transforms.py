@@ -217,6 +217,8 @@ class ToTensor(object):
         filename = sample['metadata']['filename']
 
         image = np.asarray(image)
+
+        # TODO: image normalization can be done differently (per channel).
         image = image - np.mean(image)
         assert image.shape == (54, 54, 3)
 
