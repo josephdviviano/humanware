@@ -180,13 +180,11 @@ if __name__ == '__main__':
 
     for i in range(cfg.TRAIN.NUM_HYPER_LOOP):
 
-        lr, l2, momentum, dropout = opt.ask()
+        lr, l2, momentum, dropout = hp_opt.ask()
 
         mdl = VGG('VGG19', dropout)
-        hp_opt = torch.optim.SGD(mdl.parameters(),
+        opt = torch.optim.SGD(mdl.parameters(),
                               lr=lr, weight_decay=l2, momentum=momentum)
-
-        import IPython; IPython.embed()
 
         results = train_model(mdl, opt,
                               train_loader=train_loader,
