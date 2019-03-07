@@ -141,7 +141,7 @@ def run_epoch(model, loader, optimizer, lossfxn, device, train=True):
             # Length predictions.
             _, len_pred = torch.max(output_len.data, 1)
             len_mask = (len_pred == target_len).cpu().numpy()
-            len_correct += np.sum(train_len_mask)
+            len_correct += np.sum(len_mask)
 
             # Sequence predictions.
             seq_correct += count_correct_sequences(output_seq,
