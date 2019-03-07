@@ -1,8 +1,5 @@
 import os
 
-from PIL import ImageFile
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
 from PIL import Image
 
 from torch.utils import data
@@ -16,6 +13,8 @@ from torch.utils.data import DataLoader
 from utils.transforms import FirstCrop, Rescale, RandomCrop, ToTensor
 from utils.misc import load_obj
 from utils.boxes import extract_labels_boxes
+
+import  utils.nonechucks as nc
 
 
 class SVHNDataset(data.Dataset):
@@ -167,9 +166,9 @@ def prepare_dataloaders(dataset_split,
                                     random_crop,
                                     to_tensor])
 
-    dataset = SVHNDataset(metadata,
-                          data_dir=dataset_path,
-                          transform=transform)
+    dataset = nc.SafeDataset(SVHNDataset(metadata,
+                                         data_dir=dataset_path,
+                                         transform=transform))
 
     indices = np.arange(len(metadata))
     #  indices = np.random.permutation(indices)
@@ -187,17 +186,17 @@ def prepare_dataloaders(dataset_split,
         valid_sampler = torch.utils.data.SubsetRandomSampler(valid_idx)
 
         # Prepare a train and validation dataloader
-        train_loader = DataLoader(dataset,
-                                  batch_size=batch_size,
-                                  shuffle=False,
-                                  num_workers=4,
-                                  sampler=train_sampler)
+        train_loader = nc.SafeDataLoader(dataset,
+                                         batch_size=batch_size,
+                                         shuffle=False,
+                                         num_workers=4,
+                                         sampler=train_sampler)
 
-        valid_loader = DataLoader(dataset,
-                                  batch_size=batch_size,
-                                  shuffle=False,
-                                  num_workers=4,
-                                  sampler=valid_sampler)
+        valid_loader = nc.SafeDataLoader(dataset,
+                                         batch_size=batch_size,
+                                         shuffle=False,
+                                         num_workers=4,
+                                         sampler=valid_sampler)
 
         return train_loader, valid_loader
 
@@ -206,11 +205,10 @@ def prepare_dataloaders(dataset_split,
         test_sampler = torch.utils.data.SequentialSampler(indices)
 
         # Prepare a test dataloader
-        test_loader = DataLoader(dataset,
-                                 batch_size=batch_size,
-                                 num_workers=4,
-                                 shuffle=False,
-                                 sampler=test_sampler)
+        test_loader = nc.SafeDataLoader(dataset,
+                                        batch_size=batch_size,
+                                        num_workers=4,
+                                        shuffle=False,
+                                        sampler=test_sampler)
 
         return test_loader
-
