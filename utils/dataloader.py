@@ -153,7 +153,7 @@ def prepare_dataloaders(dataset_split,
 
     firstcrop = FirstCrop(0.3)
     rescale = Rescale((64, 64))
-    random_crop = RandomCrop((54, 54))
+    random_crop = RandomCrop((54, 54), rotate=15)
     to_tensor = ToTensor()
 
     # Declare transformations
