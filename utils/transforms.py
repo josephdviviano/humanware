@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from PIL import Image
 
 from utils.boxes import extract_outer_box
 from scipy import ndimage
@@ -189,6 +190,7 @@ class RandomCrop(object):
         if self.rotate != 0:
             this_rotation = np.random.uniform(-self.rotate, self.rotate)
             image = ndimage.rotate(image, this_rotation, reshape=False)
+            image = Image.fromarray(image)
 
         image_cropped = image.crop((left, top, left + new_w, top + new_h))
 
@@ -234,8 +236,8 @@ class ToTensor(object):
 
         image = np.asarray(image)
 
-        # TODO: image normalization can be done differently (per channel).
-        image = image - np.mean(image)
+        image -= np.mean(image)
+        image -= 255
         assert image.shape == (54, 54, 3)
 
         # swap color axis
