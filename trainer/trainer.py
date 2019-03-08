@@ -6,6 +6,7 @@ import time
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
+import torchvision.utils
 
 import numpy as np
 from scipy.stats.mstats import gmean
@@ -271,6 +272,8 @@ def train_model(model, train_loader, valid_loader, device,
         tb.add_scalars('Sequence', {'Train seq accuracy': train_seq_acc,
                                     'Valid seq accuracy': valid_seq_acc},
                        global_step=epoch+1)
+
+        tb.add_image('Sample', torchvision.utils.make_grid(inputs))
 
         # Early stopping on best sequence accuracy.
         if valid_seq_acc > valid_best_accuracy:
