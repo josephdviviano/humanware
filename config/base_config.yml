@@ -6,9 +6,11 @@ SEED: 1234
 TRAIN:
   DATASET_SPLIT: 'train'
   VALID_SPLIT: 0.8
-  SAMPLE_SIZE: -1 # Number of samples to use (for debugging purposes), set to -1 to use the entire dataset
+  SAMPLE_SIZE: 1000 #-1 # Number of samples to use (for debugging purposes), set to -1 to use the entire dataset
   BATCH_SIZE: 32
-  NUM_EPOCHS: 100
+  NUM_EPOCHS: 10
   LR: 0.001
+  LR2: 0.01
   MOM: 0.9
-  SCHEDULER_PATIENCE: 10
+  SCHEDULER_PATIENCE: 2
+  TRACK_MISCLASSIFIED: True

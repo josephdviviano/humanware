@@ -148,5 +148,6 @@ if __name__ == '__main__':
                 valid_loader=valid_loader,
                 num_epochs=cfg.TRAIN.NUM_EPOCHS,
                 device=device,
-                output_dir=cfg.OUTPUT_DIR)
+                output_dir=cfg.OUTPUT_DIR,
+                track_misclassified=cfg.TRAIN.TRACK_MISCLASSIFIED)
 

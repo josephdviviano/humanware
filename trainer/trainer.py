@@ -14,12 +14,14 @@ from utils.config import cfg
 
 from tensorboardX import SummaryWriter
 
+
 class Loss():
     """
     Calculates the multitask loss using the defined loss function.
     In order to zero losses for predictions that should not have been made,
     the seq_loss requires reduction to be turned off.
     """
+
     def __init__(self):
         self.len_loss = torch.nn.CrossEntropyLoss()
         self.seq_loss = torch.nn.CrossEntropyLoss(reduction='none')
@@ -39,7 +41,6 @@ class Loss():
         dig_loss = 0.0
 
         for i in range(len(output_seq)):
-
             # Keep track of -1s: numbers that don't exist in ground truth.
             target_mask = target_seq[:, i].clone()
             target_mask[target_mask >= 0] = 1
@@ -57,9 +58,10 @@ class Loss():
         # Sum of all log probabilities.
         loss = len_loss + dig_loss
 
-        return(loss)
+        return (loss)
 
-def count_correct_sequences(output_seq, target_seq, valid_len_mask):
+
+def count_correct_sequences(output_seq, target_seq, valid_len_mask, output_pred=False):
     """
     Sequence predictions. All elements in valid_len_mask that are
     0 are not counted.
@@ -102,12 +104,47 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask):
     str_pred[valid_len_mask == 0] = ''
     n_correct = np.sum(str_pred == str_target)
 
-    return(n_correct)
+    if output_pred:
+        return str_pred == str_target
+    else:
+        return (n_correct)
+
+
+def misclassified_images(model, valid_loader, device, writer, number_max=40):
+    firsts_misclassified_img = []
+    nb_misclassified_img = 0
+    while nb_misclassified_img < number_max:
+        for batch_idx, batch in enumerate(valid_loader):
+            # Get the inputs.
+            inputs, targets = batch['image'], batch['target']
+
+            inputs = inputs.to(device)
+            target_len = targets[:, 0].long().to(device)
+            target_seq = targets[:, 1:].long().to(device)
+
+            # Forward.
+            output_len, output_seq = model(inputs)
+
+            # Length predictions.
+            _, len_pred = torch.max(output_len.data, 1)
+            valid_len_mask = (len_pred == target_len).cpu().numpy()
+
+            # Sequence predictions.
+            valid_seq_correct = count_correct_sequences(output_seq, target_seq, valid_len_mask, False)
+
+            # Misclassified images
+            misclassified_img = inputs[not (valid_seq_correct)]
+            firsts_misclassified_img.append(misclassified_img)
+
+            nb_misclassified_img += np.sum(not (valid_seq_correct))
+
+    img = torch.cat(firsts_misclassified_img, dim=1)
+    writer.add_image('Misclassified_images', torchvision.utils.make_grid(img))
 
 
 def train_model(model, train_loader, valid_loader, device,
                 num_epochs=cfg.TRAIN.NUM_EPOCHS, lr=cfg.TRAIN.LR,
-                output_dir=None):
+                output_dir=None, track_misclassified=False):
     """
     Training loop.
 
@@ -134,19 +171,19 @@ def train_model(model, train_loader, valid_loader, device,
     train_loss_history, valid_loss_history = [], []
     valid_accuracy_history = []
     valid_best_accuracy = 0
-    valid_loss = 10000 # Initial value.
+    valid_loss = 10000  # Initial value.
 
     multi_loss = Loss()
 
     tb = SummaryWriter('runs')
-    #tb.add_scalars('Initialization', {'Learning rate': cfg.TRAIN.LR,
+    # tb.add_scalars('Initialization', {'Learning rate': cfg.TRAIN.LR,
     #                                  'Weight decay': cfg.TRAIN.L2,
     #                                  'Max epochs': cfg.TRAIN.NUM_EPOCHS,
     #                                  'Patience': cfg.TRAIN.SCHEDULER_PATIENCE,
     #                                  'Begin': since})
-    #tb.add_text('Device',device)
+    # tb.add_text('Device',device)
 
-    #optimizer = torch.optim.SGD(
+    # optimizer = torch.optim.SGD(
     #    model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM,
     #    weight_decay=cfg.TRAIN.L2)
     optimizer = torch.optim.Adam(
@@ -161,7 +198,7 @@ def train_model(model, train_loader, valid_loader, device,
         # Reduces LR by factor of 10 if we don't beat best valid_loss in
         # cfg.TRAIN.SCHEDULER_PATIENCE epochs.
         scheduler.step(valid_loss)
-        
+
         # Initialize values for this epoch.
         train_loss, train_n_iter = 0, 0
         valid_loss, valid_n_iter = 0, 0
@@ -174,7 +211,6 @@ def train_model(model, train_loader, valid_loader, device,
         model = model.train()
 
         for batch_idx, batch in enumerate(tqdm(train_loader)):
-
             # Get the inputs
             inputs, targets = batch['image'], batch['target']
 
@@ -216,7 +252,6 @@ def train_model(model, train_loader, valid_loader, device,
         model = model.eval()
 
         for batch_idx, batch in enumerate(tqdm(valid_loader)):
-
             # Get the inputs.
             inputs, targets = batch['image'], batch['target']
 
@@ -258,20 +293,20 @@ def train_model(model, train_loader, valid_loader, device,
         valid_seq_acc = valid_seq_correct / valid_n_samples
 
         # For reporting purposes.
-        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss,valid_loss)
+        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss, valid_loss)
         train_acc_msg = 'Train Acc (len/seq)=[{:.4f} {:.4f}]'.format(
             train_len_acc, train_seq_acc)
         valid_acc_msg = 'Valid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
             valid_len_acc, valid_seq_acc)
         print('\t[{}/{}] {} {} {}'.format(
-            epoch+1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
-        tb.add_scalar('LR', optimizer.param_groups[-1]['lr'], global_step=epoch+1)
+            epoch + 1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
+        tb.add_scalar('LR', optimizer.param_groups[-1]['lr'], global_step=epoch + 1)
         tb.add_scalars('Length', {'Train len accuracy': train_len_acc,
                                   'Valid len accuracy': valid_len_acc},
-                       global_step=epoch+1)
+                       global_step=epoch + 1)
         tb.add_scalars('Sequence', {'Train seq accuracy': train_seq_acc,
                                     'Valid seq accuracy': valid_seq_acc},
-                       global_step=epoch+1)
+                       global_step=epoch + 1)
 
         tb.add_image('Sample', torchvision.utils.make_grid(inputs))
 
@@ -286,6 +321,10 @@ def train_model(model, train_loader, valid_loader, device,
 
     time_elapsed = time.time() - since
 
+    # Error analysis on best model - Viewing the misclassified images on Tensorboard
+    if track_misclassified:
+        misclassified_images(model, valid_loader, device, tb)
+
     print('\n\nTraining complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
 
@@ -293,4 +332,3 @@ def train_model(model, train_loader, valid_loader, device,
     model_filename = output_dir + '/best_model.pth'
     torch.save(best_model, model_filename)
     print('Best model saved to :', model_filename)
-
