@@ -110,8 +110,9 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask, output_pred=
         return (n_correct)
 
 
-def misclassified_images(model, valid_loader, device, writer, number_max=40):
-    firsts_misclassified_img = []
+def misclassified_images(model, valid_loader, device, writer, number_max=5):
+    print(f'Adding {number_max} misclassified images to TensorboardX...')
+    firsts_misclassified_img = ()
     nb_misclassified_img = 0
     while nb_misclassified_img < number_max:
         for batch_idx, batch in enumerate(valid_loader):
@@ -130,15 +131,21 @@ def misclassified_images(model, valid_loader, device, writer, number_max=40):
             valid_len_mask = (len_pred == target_len).cpu().numpy()
 
             # Sequence predictions.
-            valid_seq_correct = count_correct_sequences(output_seq, target_seq, valid_len_mask, False)
+            valid_seq_correct = count_correct_sequences(output_seq, target_seq, valid_len_mask, True)
 
             # Misclassified images
-            misclassified_img = inputs[not (valid_seq_correct)]
-            firsts_misclassified_img.append(misclassified_img)
+            if np.sum(valid_seq_correct == False) > 0:
+                print('Dimension of inputs:',inputs.size())
+                mask = torch.tensor(np.array(valid_seq_correct == False).astype(np.int))
+                misclassified_img = inputs[mask == 1]
+                print(f'Number of misclassified images in batch {batch_idx} : {np.sum(valid_seq_correct == False)}')
+                print('Dimension of misclassified_img:', misclassified_img.size())
+                firsts_misclassified_img += (misclassified_img,)
+                print('\n')
 
-            nb_misclassified_img += np.sum(not (valid_seq_correct))
+            nb_misclassified_img += np.sum(valid_seq_correct == False)
 
-    img = torch.cat(firsts_misclassified_img, dim=1)
+    img = torch.cat(firsts_misclassified_img, dim=0)
     writer.add_image('Misclassified_images', torchvision.utils.make_grid(img))
 
 
