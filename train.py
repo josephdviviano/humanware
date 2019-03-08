@@ -55,17 +55,6 @@ def parse_args():
                                 path to the directory to be used for
                                 training.''')
 
-    parser.add_argument("--extra_dir", type=str,
-                        default='data/SVHN/extra',
-                        help='''extra_data contains additional training
-                                examples.''')
-
-    parser.add_argument("--extra_metadata_filename", type=str,
-                        default='data/SVHN/extra_metadata.pkl',
-                        help='''extra_metadata_filename will be absoloute
-                                path to the directory of the extra training
-                                metadata.''')
-
     parser.add_argument("--results_dir", type=str,
                         default='results/',
                         help='''results_dir will be the absolute
@@ -94,9 +83,7 @@ def load_config():
 
     cfg.TIMESTAMP = timestamp
     cfg.INPUT_DIR = args.dataset_dir
-    cfg.EXTRA_DIR = args.extra_dir
     cfg.METADATA_FILENAME = args.metadata_filename
-    cfg.EXTRA_METADATA_FILENAME = args.metadata_filename
     cfg.OUTPUT_DIR = os.path.join(
         args.results_dir,
         '%s_%s_%s' % (cfg.DATASET_NAME, cfg.CONFIG_NAME, timestamp))
@@ -149,18 +136,6 @@ if __name__ == '__main__':
         sample_size=cfg.TRAIN.SAMPLE_SIZE,
         valid_split=cfg.TRAIN.VALID_SPLIT)
 
-    if cfg.TRAIN.DATASET_EXTRA:
-        extra_loader = prepare_dataloaders(
-            dataset_split='extra',
-            dataset_path=cfg.EXTRA_DIR,
-            metadata_filename=cfg.EXTRA_METADATA_FILENAME,
-            batch_size = cfg.TRAIN.BATCH_SIZE,
-            sample_size = cfg.TRAIN.SAMPLE_SIZE,
-            valid_split = cfg.TRAIN.VALID_SPLIT)
-    else:
-        extra_loader = None
-
-
     # Define model architecture
     # mdl = ConvNet(num_classes=7)
     # mdl = BaselineCNN(num_classes=7)
@@ -189,7 +164,6 @@ if __name__ == '__main__':
         results = train_model(mdl, opt,
                               train_loader=train_loader,
                               valid_loader=valid_loader,
-                              extra_loader=extra_loader,
                               num_epochs=cfg.TRAIN.NUM_EPOCHS,
                               device=device,
                               output_dir=cfg.OUTPUT_DIR)
