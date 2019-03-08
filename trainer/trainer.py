@@ -159,7 +159,7 @@ def run_epoch(model, loader, optimizer, lossfxn, device, train=True):
         return(results)
 
 
-def train_model(model, optimizer, train_loader, valid_loader, extra_loader,
+def train_model(model, optimizer, train_loader, valid_loader,
                 device, num_epochs=cfg.TRAIN.NUM_EPOCHS, lr=cfg.TRAIN.LR,
                 output_dir=None):
     """
@@ -207,23 +207,11 @@ def train_model(model, optimizer, train_loader, valid_loader, extra_loader,
         # cfg.TRAIN.SCHEDULER_PATIENCE epochs.
         scheduler.step(valid_loss)
 
-        train_results = run_epoch(model,
-                                  train_loader,
-                                  optimizer,
-                                  multi_loss,
-                                  device,
-                                  train=True)
+        train_results = run_epoch(model, train_loader,
+                                  optimizer, multi_loss, device, train=True)
 
-        if extra_loader != None:
-            _ = run_epoch(model, extra_loader,
-                          optimizer, multi_loss, device, train=True)
-
-        valid_results = run_epoch(model,
-                                  valid_loader,
-                                  optimizer,
-                                  multi_loss,
-                                  device,
-                                  train=False)
+        valid_results = run_epoch(model, valid_loader,
+                                  optimizer, multi_loss, device, train=False)
 
         history['train']['loss'].append(train_results['loss'])
         history['valid']['loss'].append(valid_results['loss'])
