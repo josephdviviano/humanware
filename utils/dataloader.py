@@ -14,8 +14,6 @@ from utils.transforms import FirstCrop, Rescale, RandomCrop, ToTensor
 from utils.misc import load_obj
 from utils.boxes import extract_labels_boxes
 
-import  utils.nonechucks as nc
-
 
 class SVHNDataset(data.Dataset):
 
@@ -89,8 +87,9 @@ class SVHNDataset(data.Dataset):
         '''
         'Generates one sample of data'
 
-        img_name = os.path.join(self.data_dir,
-                                self.metadata[index]['filename'])
+        img_name = os.path.join(os.path.join(self.data_dir,
+                                             self.metadata[index]['split']),
+                                             self.metadata[index]['filename'])
 
         # Load data and get raw metadata (labels & boxes)
         image = Image.open(img_name)
@@ -120,7 +119,7 @@ def prepare_dataloaders(dataset_split,
     Parameters
     ----------
     dataset_split : str
-        Any of 'train', 'extra', 'test'.
+        'train' or 'test'.
     dataset_path : str
         Absolute path to the dataset. (i.e. .../data/SVHN/train')
     metadata_filename : str
@@ -142,17 +141,15 @@ def prepare_dataloaders(dataset_split,
         valid_loader: torch.utils.DataLoader
             Dataloader containing validation data.
 
-    if dataset_split in ['test', 'extra']:
+    if dataset_split in ['test']:
         test_loader: torch.utils.DataLoader
             Dataloader containing test data.
 
     '''
 
-    assert dataset_split in ['train', 'test', 'extra'], "check dataset_split"
+    assert dataset_split in ['train', 'test'], "check dataset_split"
 
     metadata = load_obj(metadata_filename)
-
-    #  dataset_path = datadir / dataset_split
 
     firstcrop = FirstCrop(0.3)
     rescale = Rescale((64, 64))
@@ -160,24 +157,19 @@ def prepare_dataloaders(dataset_split,
     to_tensor = ToTensor()
 
     # Declare transformations
-
     transform = transforms.Compose([firstcrop,
                                     rescale,
                                     random_crop,
                                     to_tensor])
 
-    dataset = nc.SafeDataset(SVHNDataset(metadata,
-                                         data_dir=dataset_path,
-                                         transform=transform))
-
+    dataset = SVHNDataset(metadata, data_dir=dataset_path, transform=transform)
     indices = np.arange(len(metadata))
-    #  indices = np.random.permutation(indices)
 
     # Only use a sample amount of data
     if sample_size != -1:
         indices = indices[:sample_size]
 
-    if dataset_split in ['train']:
+    if dataset_split == 'train':
 
         train_idx = indices[:round(valid_split * len(indices))]
         valid_idx = indices[round(valid_split * len(indices)):]
@@ -186,29 +178,29 @@ def prepare_dataloaders(dataset_split,
         valid_sampler = torch.utils.data.SubsetRandomSampler(valid_idx)
 
         # Prepare a train and validation dataloader
-        train_loader = nc.SafeDataLoader(dataset,
+        train_loader = DataLoader(dataset,
                                          batch_size=batch_size,
                                          shuffle=False,
                                          num_workers=4,
                                          sampler=train_sampler)
 
-        valid_loader = nc.SafeDataLoader(dataset,
+        valid_loader = DataLoader(dataset,
                                          batch_size=batch_size,
                                          shuffle=False,
                                          num_workers=4,
                                          sampler=valid_sampler)
 
-        return train_loader, valid_loader
+        return(train_loader, valid_loader)
 
-    elif dataset_split in ['test', 'extra']:
+    elif dataset_split == 'test':
 
         test_sampler = torch.utils.data.SequentialSampler(indices)
 
         # Prepare a test dataloader
-        test_loader = nc.SafeDataLoader(dataset,
-                                        batch_size=batch_size,
-                                        num_workers=4,
-                                        shuffle=False,
-                                        sampler=test_sampler)
+        test_loader = DataLoader(dataset,
+                                 batch_size=batch_size,
+                                 num_workers=4,
+                                 shuffle=False,
+                                 sampler=test_sampler)
 
-        return test_loader
+        return(test_loader)
