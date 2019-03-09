@@ -236,8 +236,8 @@ class ToTensor(object):
 
         image = np.asarray(image)
 
-        image -= np.mean(image)
-        image -= 255
+        image = image - np.mean(image)
+        image = image / 255
         assert image.shape == (54, 54, 3)
 
         # swap color axis
