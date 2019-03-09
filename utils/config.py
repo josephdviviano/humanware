@@ -24,8 +24,7 @@ __C.TRAIN.L2 = [0.01]
 __C.TRAIN.DROPOUT = [0.2]
 __C.TRAIN.MOM = 0.9
 __C.TRAIN.SCHEDULER_PATIENCE = 5
-__C.TRAIN.EARLY_STOPPING_PATIENCE = 25
-
+__C.TRAIN.TRACK_MISCLASSIFIED = False
 
 def _merge_a_into_b(a, b):
     '''

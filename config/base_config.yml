@@ -4,15 +4,16 @@ SEED: 1234
 
 # Hyperparameters related to model training
 TRAIN:
-  DATASET_SPLIT: 'train'
-  VALID_SPLIT: 0.8
-  SAMPLE_SIZE: -1 # Number of samples to use (for debugging purposes), set to -1 to use the entire dataset
   BATCH_SIZE: 32
-  NUM_EPOCHS: 500
-  NUM_HYPER_LOOP: 25
-  LR: [0.0001, 0.1]      # Lists are optimized using skopt
-  L2: [0.0001, 0.1]      #
-  DROPOUT: [0.5, 0.9]    #
-  MOM: [0.0, 0.5]        #
-  SCHEDULER_PATIENCE: 10
+  DATASET_SPLIT: 'train'
+  DROPOUT: [0.0, 0.2]    #
   EARLY_STOPPING_PATIENCE: 25
+  L2: [0.0001, 0.1]      #
+  LR: [0.0001, 0.1]      # Lists are optimized using skopt
+  MOM: [0.75, 0.9]       #
+  NUM_EPOCHS: 10
+  NUM_HYPER_LOOP: 25
+  SAMPLE_SIZE: 1000 # set to -1 to use the entire dataset
+  SCHEDULER_PATIENCE: 2
+  TRACK_MISCLASSIFIED: True
+  VALID_SPLIT: 0.8

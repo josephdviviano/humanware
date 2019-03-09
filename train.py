@@ -147,9 +147,9 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Device used: ", device)
 
-    # Baysian hyperparameter optimization: [lr, l2, momentum, dropout]
+    # Baysian hyperparameter optimization: [lr, l2, momentum]
     opt = Optimizer(
-        [cfg.TRAIN.LR, cfg.TRAIN.L2, cfg.TRAIN.MOM, cfg.TRAIN.DROPOUT],
+        [cfg.TRAIN.LR, cfg.TRAIN.L2, cfg.TRAIN.MOM],
         "GP", acq_optimizer="sampling", random_state=cfg.SEED
     )
 
@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
         lr, l2, momentum, dropout = opt.ask()
 
-        mdl = VGG('VGG19', dropout)
+        mdl = ResNet18(num_classes=7)
         opt = torch.optim.SGD(mdl.parameters(),
                               lr=lr, weight_decay=l2, momentum=momentum)
 
