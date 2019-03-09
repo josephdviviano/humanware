@@ -1,7 +1,9 @@
 import numpy as np
 import torch
+from PIL import Image
 
 from utils.boxes import extract_outer_box
+from scipy import ndimage
 
 
 class FirstCrop(object):
@@ -129,9 +131,11 @@ class Rescale(object):
 
 class RandomCrop(object):
 
-    def __init__(self, output_size):
+    def __init__(self, output_size, rotate=0):
         '''
         Crop randomly the image in a sample.
+        If rotate is greater than 0, will randomly rotate by the image by
+        a value between [-rotate, rotate] degrees.
 
         Parameters
         ----------
@@ -146,6 +150,15 @@ class RandomCrop(object):
         else:
             assert len(output_size) == 2
             self.output_size = output_size
+
+        # Maximum rotation is 180 degrees.
+        assert isinstance(rotate, (int, float))
+        if rotate < 0:
+            rotate = abs(rotate)
+        if rotate > 180:
+            rotate = 180
+
+        self.rotate = rotate
 
     def __call__(self, sample):
         '''
@@ -173,6 +186,11 @@ class RandomCrop(object):
 
         top = np.random.randint(0, h - new_h)
         left = np.random.randint(0, w - new_w)
+
+        if self.rotate != 0:
+            this_rotation = np.random.uniform(-self.rotate, self.rotate)
+            image = ndimage.rotate(image, this_rotation, reshape=False)
+            image = Image.fromarray(image)
 
         image_cropped = image.crop((left, top, left + new_w, top + new_h))
 
@@ -217,7 +235,9 @@ class ToTensor(object):
         filename = sample['metadata']['filename']
 
         image = np.asarray(image)
-        image = image - np.mean(image)
+
+        image -= np.mean(image)
+        image -= 255
         assert image.shape == (54, 54, 3)
 
         # swap color axis

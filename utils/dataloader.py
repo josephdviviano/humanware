@@ -1,6 +1,7 @@
 import os
 
 from PIL import Image
+
 from torch.utils import data
 
 import numpy as np
@@ -86,8 +87,9 @@ class SVHNDataset(data.Dataset):
         '''
         'Generates one sample of data'
 
-        img_name = os.path.join(self.data_dir,
-                                self.metadata[index]['filename'])
+        img_name = os.path.join(os.path.join(self.data_dir,
+                                             self.metadata[index]['split']),
+                                             self.metadata[index]['filename'])
 
         # Load data and get raw metadata (labels & boxes)
         image = Image.open(img_name)
@@ -117,7 +119,7 @@ def prepare_dataloaders(dataset_split,
     Parameters
     ----------
     dataset_split : str
-        Any of 'train', 'extra', 'test'.
+        'train' or 'test'.
     dataset_path : str
         Absolute path to the dataset. (i.e. .../data/SVHN/train')
     metadata_filename : str
@@ -133,7 +135,7 @@ def prepare_dataloaders(dataset_split,
 
     Returns
     -------
-    if dataset_split in ['train', 'extra']:
+    if dataset_split in ['train']:
         train_loader: torch.utils.DataLoader
             Dataloader containing training data.
         valid_loader: torch.utils.DataLoader
@@ -145,36 +147,29 @@ def prepare_dataloaders(dataset_split,
 
     '''
 
-    assert dataset_split in ['train', 'test', 'extra'], "check dataset_split"
+    assert dataset_split in ['train', 'test'], "check dataset_split"
 
     metadata = load_obj(metadata_filename)
 
-    #  dataset_path = datadir / dataset_split
-
     firstcrop = FirstCrop(0.3)
     rescale = Rescale((64, 64))
-    random_crop = RandomCrop((54, 54))
+    random_crop = RandomCrop((54, 54), rotate=15)
     to_tensor = ToTensor()
 
     # Declare transformations
-
     transform = transforms.Compose([firstcrop,
                                     rescale,
                                     random_crop,
                                     to_tensor])
 
-    dataset = SVHNDataset(metadata,
-                          data_dir=dataset_path,
-                          transform=transform)
-
+    dataset = SVHNDataset(metadata, data_dir=dataset_path, transform=transform)
     indices = np.arange(len(metadata))
-    #  indices = np.random.permutation(indices)
 
     # Only use a sample amount of data
     if sample_size != -1:
         indices = indices[:sample_size]
 
-    if dataset_split in ['train', 'extra']:
+    if dataset_split == 'train':
 
         train_idx = indices[:round(valid_split * len(indices))]
         valid_idx = indices[round(valid_split * len(indices)):]
@@ -184,20 +179,20 @@ def prepare_dataloaders(dataset_split,
 
         # Prepare a train and validation dataloader
         train_loader = DataLoader(dataset,
-                                  batch_size=batch_size,
-                                  shuffle=False,
-                                  num_workers=4,
-                                  sampler=train_sampler)
+                                         batch_size=batch_size,
+                                         shuffle=False,
+                                         num_workers=4,
+                                         sampler=train_sampler)
 
         valid_loader = DataLoader(dataset,
-                                  batch_size=batch_size,
-                                  shuffle=False,
-                                  num_workers=4,
-                                  sampler=valid_sampler)
+                                         batch_size=batch_size,
+                                         shuffle=False,
+                                         num_workers=4,
+                                         sampler=valid_sampler)
 
-        return train_loader, valid_loader
+        return(train_loader, valid_loader)
 
-    elif dataset_split in ['test']:
+    elif dataset_split == 'test':
 
         test_sampler = torch.utils.data.SequentialSampler(indices)
 
@@ -208,4 +203,4 @@ def prepare_dataloaders(dataset_split,
                                  shuffle=False,
                                  sampler=test_sampler)
 
-        return test_loader
+        return(test_loader)

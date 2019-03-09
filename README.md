@@ -12,11 +12,29 @@ this application notably for the selection and development of the models we
 will use like the execution time, online vs. offline, the memory usage (in the
 case of a mobile application), etc.
 
+## extra SVHN dataset
+the 'extra' XVHN dataset provided had a number of corrupt images that lead
+to the following error during dataloading:
+
+```
+~/code/humanware/utils/transforms.py in __call__(self, sample)
+    103         filename = sample['metadata']['filename']
+    104
+--> 105         h, w = np.asarray(image).shape[:2]
+    106
+    107         new_h, new_w = self.output_size
+
+ValueError: not enough values to unpack (expected 2, got 0)
+```
+
+The following images were therefore removed from `extra_metadata.pkl`:
+
+
 ## Quick usage on Helios
 
-To run the code on Helios, you can use the scripts in `scrips/helios/train_on_helios.sh`. 
+To run the code on Helios, you can use the scripts in `scrips/helios/train_on_helios.sh`.
 
-You can run this directly from the login node using msub: 
+You can run this directly from the login node using msub:
 
 `msub -A $GROUP_RAP -l feature=k80,nodes=1:gpus=1,walltime=2:00:00 train_on_helios.sh`
 
@@ -40,3 +58,7 @@ See [ipdb](https://pypi.org/project/ipdb/) for more informations.
 ## Data
 For more information about the data used and its format, consult the `README`
 in the `data/` directory.
+
+## Includes
+`bbopt` cloned on March 1st 2019.
+

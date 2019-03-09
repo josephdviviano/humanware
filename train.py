@@ -43,17 +43,17 @@ def parse_args():
                         help='''optional config file,
                              e.g. config/base_config.yml''')
 
-    parser.add_argument("--metadata_filename", type=str,
-                        default='data/SVHN/train_metadata.pkl',
-                        help='''metadata_filename will be the absolute
-                                path to the directory to be used for
-                                training.''')
-
     parser.add_argument("--dataset_dir", type=str,
                         default='data/SVHN/train/',
                         help='''dataset_dir will be the absolute path
                                 to the directory to be used for
                                 training''')
+
+    parser.add_argument("--metadata_filename", type=str,
+                        default='data/SVHN/train_metadata.pkl',
+                        help='''metadata_filename will be the absolute
+                                path to the directory to be used for
+                                training.''')
 
     parser.add_argument("--results_dir", type=str,
                         default='results/',
@@ -121,13 +121,13 @@ def fix_seed(seed):
 
 if __name__ == '__main__':
 
-    # Load the config file
+    # Load the config file.
     load_config()
 
-    # Make the results reproductible
+    # Make the results reproductible.
     fix_seed(cfg.SEED)
 
-    # Prepare data
+    # Prepare data.
     (train_loader, valid_loader) = prepare_dataloaders(
         dataset_split=cfg.TRAIN.DATASET_SPLIT,
         dataset_path=cfg.INPUT_DIR,
@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
     for i in range(cfg.TRAIN.NUM_HYPER_LOOP):
 
-        lr, l2, momentum, dropout = opt.ask()
+        lr, l2, momentum, dropout = hp_opt.ask()
 
         mdl = ResNet18(num_classes=7)
         opt = torch.optim.SGD(mdl.parameters(),
@@ -169,4 +169,4 @@ if __name__ == '__main__':
                               output_dir=cfg.OUTPUT_DIR)
 
         # Update optimizer with best accuracy obtained.
-        opt.tell(next_x, results['best_acc'])
+        hp_opt.tell(next_x, results['best_acc'])
