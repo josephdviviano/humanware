@@ -7,14 +7,13 @@ TRAIN:
   BATCH_SIZE: 32
   DATASET_SPLIT: 'train'
   DROPOUT: 0.25
-  EARLY_STOPPING_PATIENCE: 25
-  EARLY_STOPPING_PATIENCE: 5
+  EARLY_STOPPING_PATIENCE: 2
   L2: [0.0001, 0.001]  #
   LR: [0.001, 0.01]    # Lists are optimized using skopt
   MOM: [0.75, 0.99]    #
-  NUM_EPOCHS: 10
-  NUM_HYPER_LOOP: 5
-  SAMPLE_SIZE: 1000 # set to -1 to use the entire dataset
-  SCHEDULER_PATIENCE: 2
+  NUM_EPOCHS: 25
+  NUM_HYPER_LOOP: 10
+  SAMPLE_SIZE: -1 # set to -1 to use the entire dataset
+  SCHEDULER_PATIENCE: 1
   TRACK_MISCLASSIFIED: True
   VALID_SPLIT: 0.8
