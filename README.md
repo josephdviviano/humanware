@@ -60,6 +60,7 @@ results_dir/
 
     checkpoint.pth.tar -- the last state of training saved (epoch wise).
     config.yml         -- the configuration used to launch training.
+    best_model.pth.tar -- the best model among all hyperparamater runs (so far).
 
     00/                -- 1st iteration of hyper parameter search.
         best_model.pth -- best model found for these hyper parameters.
