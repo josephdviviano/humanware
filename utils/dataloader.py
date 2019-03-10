@@ -87,9 +87,10 @@ class SVHNDataset(data.Dataset):
         '''
         'Generates one sample of data'
 
-        img_name = os.path.join(os.path.join(self.data_dir,
-                                             self.metadata[index]['split']),
-                                             self.metadata[index]['filename'])
+        img_name = os.path.join(
+            os.path.join(
+                self.data_dir, self.metadata[index]['split']),
+            self.metadata[index]['filename'])
 
         # Load data and get raw metadata (labels & boxes)
         image = Image.open(img_name)
@@ -179,16 +180,16 @@ def prepare_dataloaders(dataset_split,
 
         # Prepare a train and validation dataloader
         train_loader = DataLoader(dataset,
-                                         batch_size=batch_size,
-                                         shuffle=False,
-                                         num_workers=4,
-                                         sampler=train_sampler)
+                                  batch_size=batch_size,
+                                  shuffle=False,
+                                  num_workers=4,
+                                  sampler=train_sampler)
 
         valid_loader = DataLoader(dataset,
-                                         batch_size=batch_size,
-                                         shuffle=False,
-                                         num_workers=4,
-                                         sampler=valid_sampler)
+                                  batch_size=batch_size,
+                                  shuffle=False,
+                                  num_workers=4,
+                                  sampler=valid_sampler)
 
         return(train_loader, valid_loader)
 
