@@ -1,18 +1,15 @@
-from __future__ import print_function
-
 import copy
+import os
 import time
+import random
 
 import torch
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 import torchvision.utils
+from tensorboardX import SummaryWriter
 
 import numpy as np
-from scipy.stats.mstats import gmean
 from utils.config import cfg
-
-from tensorboardX import SummaryWriter
 
 
 class Loss():
@@ -61,7 +58,8 @@ class Loss():
         return (loss)
 
 
-def count_correct_sequences(output_seq, target_seq, valid_len_mask, output_pred=False):
+def count_correct_sequences(output_seq, target_seq, valid_len_mask,
+                            output_pred=False):
     """
     Sequence predictions. All elements in valid_len_mask that are
     0 are not counted.
@@ -111,11 +109,13 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask, output_pred=
 
 
 def misclassified_images(model, valid_loader, device, writer, number_max=5):
-    print(f'Adding {number_max} misclassified images to TensorboardX...')
+
     firsts_misclassified_img = ()
     nb_misclassified_img = 0
+
     while nb_misclassified_img < number_max:
         for batch_idx, batch in enumerate(valid_loader):
+
             # Get the inputs.
             inputs, targets = batch['image'], batch['target']
 
@@ -128,30 +128,94 @@ def misclassified_images(model, valid_loader, device, writer, number_max=5):
 
             # Length predictions.
             _, len_pred = torch.max(output_len.data, 1)
-            valid_len_mask = (len_pred == target_len).cpu().numpy()
+            len_mask = (len_pred == target_len).cpu().numpy()
 
             # Sequence predictions.
-            valid_seq_correct = count_correct_sequences(output_seq, target_seq, valid_len_mask, True)
+            seq_correct = count_correct_sequences(
+                output_seq, target_seq, len_mask, output_pred=True)
 
             # Misclassified images
-            if np.sum(valid_seq_correct == False) > 0:
-                print('Dimension of inputs:',inputs.size())
-                mask = torch.tensor(np.array(valid_seq_correct == False).astype(np.int))
-                misclassified_img = inputs[mask == 1]
-                print(f'Number of misclassified images in batch {batch_idx} : {np.sum(valid_seq_correct == False)}')
-                print('Dimension of misclassified_img:', misclassified_img.size())
-                firsts_misclassified_img += (misclassified_img,)
-                print('\n')
+            seq_correct = seq_correct.astype(np.int)  # True = 1, False = 0
+            n_misclassified = len(seq_correct) - np.sum(seq_correct)
 
-            nb_misclassified_img += np.sum(valid_seq_correct == False)
+            if n_misclassified > 0:
+                seq_correct = torch.tensor(seq_correct)
+                misclassified_img = inputs[seq_correct == 0]
+                firsts_misclassified_img += (misclassified_img,)
+                nb_misclassified_img += n_misclassified
+
+    print('Adding {} misclassified images to TensorboardX...'.format(
+          number_max))
 
     img = torch.cat(firsts_misclassified_img, dim=0)
     writer.add_image('Misclassified_images', torchvision.utils.make_grid(img))
 
 
-def train_model(model, train_loader, valid_loader, device,
+def run_epoch(model, loader, optimizer, lossfxn, device, train=True):
+    """
+    Runs an epoch of data through model, either in training or
+    evaluation mode.
+    """
+
+    mean_loss, n_iter, n_samples, len_correct, seq_correct = 0, 0, 0, 0, 0
+
+    if train:
+        model = model.train()
+    else:
+        model = model.eval()
+
+    for batch_idx, batch in enumerate(tqdm(loader)):
+
+        # Get the inputs
+        inputs, targets = batch['image'], batch['target']
+
+        inputs = inputs.to(device)
+        target_len = targets[:, 0].long().to(device)
+        target_seq = targets[:, 1:].long().to(device)
+
+        if train:
+            optimizer.zero_grad()  # Zero the gradient buffer.
+
+        # Forward.
+        output_len, output_seq = model(inputs)
+        loss = lossfxn.calc(output_len, target_len, output_seq, target_seq)
+
+        # Backward.
+        if train:
+            loss.backward()
+            optimizer.step()
+
+        # Statistics
+        mean_loss += loss.item()
+        n_iter += 1
+
+        # Length predictions.
+        _, len_pred = torch.max(output_len.data, 1)
+        len_mask = (len_pred == target_len).cpu().numpy()
+        len_correct += np.sum(len_mask)
+
+        # Sequence predictions.
+        seq_correct += count_correct_sequences(output_seq,
+                                               target_seq, len_mask)
+
+        n_samples += target_len.size(0)
+
+    # Final stats.
+    mean_loss /= n_iter
+    len_acc = len_correct / n_samples
+    seq_acc = seq_correct / n_samples
+
+    results = {'loss': mean_loss, 'len_acc': len_acc, 'seq_acc': seq_acc}
+
+    return(results)
+
+
+def train_model(model, optimizer, scheduler, hp_opt,
+                train_loader, valid_loader,
+                device, output_dir, iteration, resume, best_final_acc,
                 num_epochs=cfg.TRAIN.NUM_EPOCHS, lr=cfg.TRAIN.LR,
-                output_dir=None, track_misclassified=False):
+                l2=cfg.TRAIN.L2, momentum=cfg.TRAIN.MOM,
+                track_misclassified=False):
     """
     Training loop.
 
@@ -175,167 +239,149 @@ def train_model(model, train_loader, valid_loader, device,
     """
     since = time.time()
     model = model.to(device)
-    train_loss_history, valid_loss_history = [], []
-    valid_accuracy_history = []
-    valid_best_accuracy = 0
-    valid_loss = 10000  # Initial value.
-
     multi_loss = Loss()
 
-    tb = SummaryWriter('runs')
-    # tb.add_scalars('Initialization', {'Learning rate': cfg.TRAIN.LR,
-    #                                  'Weight decay': cfg.TRAIN.L2,
-    #                                  'Max epochs': cfg.TRAIN.NUM_EPOCHS,
-    #                                  'Patience': cfg.TRAIN.SCHEDULER_PATIENCE,
-    #                                  'Begin': since})
-    # tb.add_text('Device',device)
+    # Load statistics for these n epochs.
+    if resume:
+        checkpoint = os.path.join(cfg.OUTPUT_DIR, 'checkpoint.pth.tar')
+        state = torch.load(checkpoint)
+        history = state['history']
+        valid_best_accuracy = state['valid_best_accuracy']
+        best_epoch = state['best_epoch']
+        valid_loss = state['valid_loss']
+        base_epoch = state['epoch']
+    else:
+        history = {'train': {'acc': [], 'loss': []},
+                   'valid': {'acc': [], 'loss': []}}
+        base_epoch, valid_best_accuracy, best_epoch = 0, 0, 0
+        valid_loss = 10000
 
-    # optimizer = torch.optim.SGD(
-    #    model.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOM,
-    #    weight_decay=cfg.TRAIN.L2)
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=cfg.TRAIN.LR, weight_decay=cfg.TRAIN.L2)
+    # Add a summarywriter with out current hyperparameter settings.
+    tb_log_dir = os.path.join(
+        os.path.join(
+            cfg.OUTPUT_DIR, "{:02d}".format(iteration)), 'tensorboard')
 
-    scheduler = ReduceLROnPlateau(optimizer,
-                                  patience=cfg.TRAIN.SCHEDULER_PATIENCE)
+    tb = SummaryWriter(log_dir=tb_log_dir)
+    tb.add_scalars('Initialization', {'Learning rate': lr,
+                                      'Weight decay': l2,
+                                      'Max epochs': num_epochs,
+                                      'Patience': cfg.TRAIN.SCHEDULER_PATIENCE,
+                                      'Begin': since})
 
-    print("# Start training #")
-    for epoch in range(num_epochs):
+    print("Training model: hp_iteration={} starting at epoch={}".format(
+        iteration, base_epoch+1))
+
+    for epoch in range(base_epoch, num_epochs):
 
         # Reduces LR by factor of 10 if we don't beat best valid_loss in
         # cfg.TRAIN.SCHEDULER_PATIENCE epochs.
         scheduler.step(valid_loss)
 
-        # Initialize values for this epoch.
-        train_loss, train_n_iter = 0, 0
-        valid_loss, valid_n_iter = 0, 0
-        train_len_correct, train_seq_correct = 0, 0
-        valid_len_correct, valid_seq_correct = 0, 0
-        train_n_samples = 0
-        valid_n_samples = 0
+        train_results = run_epoch(model, train_loader,
+                                  optimizer, multi_loss, device, train=True)
 
-        # Train data.
-        model = model.train()
+        valid_results = run_epoch(model, valid_loader,
+                                  optimizer, multi_loss, device, train=False)
 
-        for batch_idx, batch in enumerate(tqdm(train_loader)):
-            # Get the inputs
-            inputs, targets = batch['image'], batch['target']
+        history['train']['loss'].append(train_results['loss'])
+        history['valid']['loss'].append(valid_results['loss'])
+        history['train']['acc'].append(train_results['seq_acc'])
+        history['valid']['acc'].append(valid_results['seq_acc'])
 
-            inputs = inputs.to(device)
-            target_len = targets[:, 0].long().to(device)
-            target_seq = targets[:, 1:].long().to(device)
+        # Checkpoint!
+        torch_seed = torch.random.get_rng_state()
+        numpy_seed = np.random.get_state()
+        python_seed = random.getstate()
 
-            # Zero the gradient buffer
-            optimizer.zero_grad()
+        state = {'iteration': iteration,
+                 'base_epoch': epoch,
+                 'best_epoch': best_epoch,
+                 'best_final_acc': best_final_acc,
+                 'epoch': epoch+1,
+                 'history': history,
+                 'hp_opt': hp_opt,
+                 'l2': l2,
+                 'lr': lr,
+                 'momentum': momentum,
+                 'numpy_seed': numpy_seed,
+                 'optimizer': optimizer.state_dict(),
+                 'python_seed': python_seed,
+                 'scheduler': scheduler.state_dict(),
+                 'state_dict': model.state_dict(),
+                 'torch_seed': torch_seed,
+                 'valid_best_accuracy': valid_best_accuracy,
+                 'valid_loss': valid_loss,
+                 'tb_log_dir': tb_log_dir}
 
-            # Forward
-            output_len, output_seq = model(inputs)
+        torch.save(state, os.path.join(cfg.OUTPUT_DIR, 'checkpoint.pth.tar'))
 
-            loss = multi_loss.calc(
-                output_len, target_len, output_seq, target_seq)
+        # Report to terminal.
+        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(
+            train_results['loss'], valid_results['loss'])
+        acc_msg = 'Seq Acc (t/v)=[{:.4f} {:.4f}]'.format(
+            train_results['seq_acc'], valid_results['seq_acc'])
+        print('\t[{}/{}] {} {}'.format(
+            epoch + 1, num_epochs, loss_msg, acc_msg))
 
-            # Backward
-            loss.backward()
+        # Report to tensorboard.
+        tb.add_scalar(
+            'LR', optimizer.param_groups[-1]['lr'], global_step=epoch + 1)
 
-            # Optimize
-            optimizer.step()
+        tb.add_scalars(
+            'Length',
+            {'Train len accuracy': train_results['len_acc'],
+             'Valid len accuracy': valid_results['len_acc']},
+            global_step=epoch + 1)
 
-            # Statistics
-            train_loss += loss.item()
-            train_n_iter += 1
+        tb.add_scalars(
+            'Sequence',
+            {'Train seq accuracy': train_results['seq_acc'],
+             'Valid seq accuracy': valid_results['seq_acc']},
+            global_step=epoch + 1)
 
-            # Length predictions.
-            _, len_pred = torch.max(output_len.data, 1)
-            train_len_mask = (len_pred == target_len).cpu().numpy()
-            train_len_correct += np.sum(train_len_mask)
-
-            # Sequence predictions.
-            train_seq_correct += count_correct_sequences(
-                output_seq, target_seq, train_len_mask)
-
-            train_n_samples += target_len.size(0)
-
-        # Validation data.
-        model = model.eval()
-
-        for batch_idx, batch in enumerate(tqdm(valid_loader)):
-            # Get the inputs.
-            inputs, targets = batch['image'], batch['target']
-
-            inputs = inputs.to(device)
-            target_len = targets[:, 0].long().to(device)
-            target_seq = targets[:, 1:].long().to(device)
-
-            # Forward.
-            output_len, output_seq = model(inputs)
-
-            loss = multi_loss.calc(
-                output_len, target_len, output_seq, target_seq)
-
-            # Statistics
-            valid_loss += loss.item()
-            valid_n_iter += 1
-
-            # Length predictions.
-            _, len_pred = torch.max(output_len.data, 1)
-            valid_len_mask = (len_pred == target_len).cpu().numpy()
-            valid_len_correct += np.sum(valid_len_mask)
-
-            # Sequence predictions.
-            valid_seq_correct += count_correct_sequences(
-                output_seq, target_seq, valid_len_mask)
-
-            valid_n_samples += target_len.size(0)
-
-        # Calculate final values
-        train_loss /= train_n_iter
-        valid_loss /= valid_n_iter
-
-        train_loss_history.append(train_loss)
-        valid_loss_history.append(valid_loss)
-
-        train_len_acc = train_len_correct / train_n_samples
-        train_seq_acc = train_seq_correct / train_n_samples
-        valid_len_acc = valid_len_correct / valid_n_samples
-        valid_seq_acc = valid_seq_correct / valid_n_samples
-
-        # For reporting purposes.
-        loss_msg = 'Loss (t/v)=[{:.4f} {:.4f}]'.format(train_loss, valid_loss)
-        train_acc_msg = 'Train Acc (len/seq)=[{:.4f} {:.4f}]'.format(
-            train_len_acc, train_seq_acc)
-        valid_acc_msg = 'Valid Acc (len/seq)=[{:.4f} {:.4f}]'.format(
-            valid_len_acc, valid_seq_acc)
-        print('\t[{}/{}] {} {} {}'.format(
-            epoch + 1, num_epochs, loss_msg, train_acc_msg, valid_acc_msg))
-        tb.add_scalar('LR', optimizer.param_groups[-1]['lr'], global_step=epoch + 1)
-        tb.add_scalars('Length', {'Train len accuracy': train_len_acc,
-                                  'Valid len accuracy': valid_len_acc},
-                       global_step=epoch + 1)
-        tb.add_scalars('Sequence', {'Train seq accuracy': train_seq_acc,
-                                    'Valid seq accuracy': valid_seq_acc},
-                       global_step=epoch + 1)
-
-        tb.add_image('Sample', torchvision.utils.make_grid(inputs))
+        tb.add_scalars(
+            'Loss',
+            {'Train loss': train_results['loss'],
+             'Valid loss': valid_results['loss']},
+            global_step=epoch + 1)
 
         # Early stopping on best sequence accuracy.
-        if valid_seq_acc > valid_best_accuracy:
-            valid_best_accuracy = valid_seq_acc
+        if valid_results['seq_acc'] > valid_best_accuracy:
+            valid_best_accuracy = valid_results['seq_acc']
+            best_epoch = epoch + 1
             best_model = copy.deepcopy(model)
-            print('Checkpointing new model...\n')
-            model_filename = output_dir + '/checkpoint.pth'
+            model_filename = os.path.join(
+                os.path.join(
+                    output_dir, "{:02d}".format(iteration), 'best_model.pth'))
             torch.save(model, model_filename)
-        valid_accuracy_history.append(valid_seq_acc)
+            print('New best model saved to {}'.format(model_filename))
+
+        # Patience stop training after n epochs of no improvement.
+        elif epoch+1 - cfg.TRAIN.EARLY_STOPPING_PATIENCE == best_epoch:
+            print('No improvement in valid loss in {} epochs, stopping'.format(
+                cfg.TRAIN.EARLY_STOPPING_PATIENCE))
+            break
 
     time_elapsed = time.time() - since
 
-    # Error analysis on best model - Viewing the misclassified images on Tensorboard
+    # Error analysis on best model (view misclassified images)
     if track_misclassified:
         misclassified_images(model, valid_loader, device, tb)
 
-    print('\n\nTraining complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
+    print('\n\nTraining iteration {} complete in {:.0f}m {:.0f}s'.format(
+        iteration, time_elapsed // 60, time_elapsed % 60))
 
-    print('Saving model ...')
-    model_filename = output_dir + '/best_model.pth'
-    torch.save(best_model, model_filename)
-    print('Best model saved to :', model_filename)
+    results = {
+        'best_model': best_model,
+        'best_epoch': best_epoch,
+        'best_acc': valid_best_accuracy,
+        'lr': lr,
+        'l2': l2,
+        'momentum': momentum,
+        'time_elapsed': time_elapsed,
+        'last_epoch': epoch + 1,
+        'history': history,
+        'optimizer': optimizer
+    }
+
+    return(results)

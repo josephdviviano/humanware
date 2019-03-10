@@ -1,16 +1,19 @@
-CONFIG_NAME: 'DeepConv'
+CONFIG_NAME: 'VGG19'
 DATASET_NAME: SVHN
 SEED: 1234
 
 # Hyperparameters related to model training
 TRAIN:
-  DATASET_SPLIT: 'train'
-  VALID_SPLIT: 0.8
-  SAMPLE_SIZE: 1000 #-1 # Number of samples to use (for debugging purposes), set to -1 to use the entire dataset
   BATCH_SIZE: 32
-  NUM_EPOCHS: 10
-  LR: 0.001
-  LR2: 0.01
-  MOM: 0.9
-  SCHEDULER_PATIENCE: 2
+  DATASET_SPLIT: 'train'
+  DROPOUT: 0.25
+  EARLY_STOPPING_PATIENCE: 2
+  L2: [0.0001, 0.001]  #
+  LR: [0.001, 0.01]    # Lists are optimized using skopt
+  MOM: [0.75, 0.99]    #
+  NUM_EPOCHS: 25
+  NUM_HYPER_LOOP: 10
+  SAMPLE_SIZE: -1 # set to -1 to use the entire dataset
+  SCHEDULER_PATIENCE: 1
   TRACK_MISCLASSIFIED: True
+  VALID_SPLIT: 0.8
