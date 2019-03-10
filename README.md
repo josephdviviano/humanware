@@ -1,5 +1,7 @@
 # Door Number Detection Project
 
+**Quickstart:** Look at `run_on_helios.sh` for example usage.
+
 This repository contains the code necessary for the door number detection
 project.
 
@@ -13,22 +15,64 @@ will use like the execution time, online vs. offline, the memory usage (in the
 case of a mobile application), etc.
 
 ## extra SVHN dataset
-the 'extra' XVHN dataset provided had a number of corrupt images that lead
-to the following error during dataloading:
+
+This model combines the `train` and `extra` data  available in
+`train_extra_metadata_split.pkl`. This increases the number of available images
+by a factor of 10 and therefore significantly increases training time.
+
+## Hyperparameter search.
+
+Hyperparameter search uses a baysian approach via the `skopt` package.
+
+The `NUM_HYPER_LOOP` option in the `config.yml` controls how many iterations
+of this occour during training.
+
+## Checkpointing.
+
+Checkpointing is stored in the results directory with each of the individual
+training loops conducted during hyperparameter searching having it's own sub-
+folder `{00, 01, 02, ... NN}`. The file `checkpoint.pth.tar` contains all
+information required to:
+
++ Re-instantiate the seeds properly for the random number generators.
++ Recreate the model with it's weights.
++ Recreate the optimizer and it's scheduler with their state.
++ Recreate the hyperparameter optimizer with it's state.
++ Restart tensorboard logging.
++ Pick up where training left off with respect to loss tracking, etc.
+
+`config.yml` contains the configuration used for this experiment. It will be
+used if it exists regardless of whether the user specified another
+configuration file at runtime.
+
+Inside each numbered folder for each hyperparameter run, the `best_model.pth`
+file contains the best model found during training (i.e, early stopping).
+This also means the models can be combined later for ensemble learning if
+desired.
+
+Finally, each numbered folder contains a `tensorboard/` folder which contains
+the tensorboard logs for that particular run.
+
+Here is a view of the results directory structure:
 
 ```
-~/code/humanware/utils/transforms.py in __call__(self, sample)
-    103         filename = sample['metadata']['filename']
-    104
---> 105         h, w = np.asarray(image).shape[:2]
-    106
-    107         new_h, new_w = self.output_size
+results_dir/
 
-ValueError: not enough values to unpack (expected 2, got 0)
+    checkpoint.pth.tar -- the last state of training saved (epoch wise).
+    config.yml         -- the configuration used to launch training.
+
+    00/                -- 1st iteration of hyper parameter search.
+        best_model.pth -- best model found for these hyper parameters.
+        tensorboard/   -- tensorboard logs for these hyper parameters.
+
+    01/                -- 2st iteration of hyper parameter search.
+        best_model.pth -- best model found for these hyper parameters.
+        tensorboard/   -- tensorboard logs for these hyper parameters.
+    ...
+    NN/                -- nth iteration of hyper parameter search.
+        best_model.pth -- best model found for these hyper parameters.
+        tensorboard/   -- tensorboard logs for these hyper parameters.
 ```
-
-The following images were therefore removed from `extra_metadata.pkl`:
-
 
 ## Quick usage on Helios
 
@@ -39,21 +83,6 @@ You can run this directly from the login node using msub:
 `msub -A $GROUP_RAP -l feature=k80,nodes=1:gpus=1,walltime=2:00:00 train_on_helios.sh`
 
 You can easily add this script to a `.pbs` file with your specific settings.
-
-To change the data directories, you can modify the `train_on_helios.sh` script. To change configurations during training, use the `config/base_config.yml` file. This contains tuneable options that can be useful.
-
-To modify the models used, modify the appropriate model declaration in `trainer/trainer.py`. Currently, VGG and Resnet as well as simple baselines are implemented.
-
-## Best Model
-
-The best performing model found for the first part of the project was a VGG19 with learning rate 1e-3, momentum 0.9, SGD optimizer and batch size of 32.
-
-## Run the code interactively
-For debugging purpose you might want to run your code interactively.
-
-If you want to stop your code in a particular line you can add those
-lines there: `import ipdb; ipdb.set_trace()`.
-See [ipdb](https://pypi.org/project/ipdb/) for more informations.
 
 ## Data
 For more information about the data used and its format, consult the `README`
