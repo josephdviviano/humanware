@@ -1,5 +1,3 @@
-from utils.dataloader import prepare_dataloaders
-
 from pathlib import Path
 from tqdm import tqdm
 import argparse
@@ -11,7 +9,40 @@ from sklearn.metrics import confusion_matrix
 import numpy as np
 import torch
 
-sys.path.append('..')
+sys.path.append('../')
+
+from utils.dataloader import prepare_dataloaders
+
+
+
+def gen_predictions(output_len, output_seq):
+    """
+    Sequence predictions. All elements in valid_len_mask that are
+    0 are not counted.
+    """
+
+    this_batch = output_seq[0].size()[0]
+    str_pred = np.repeat('', this_batch).astype('<U10')
+
+    _, len_pred = torch.max(output_len.data, 1)
+
+    for i in range(len(output_seq)):
+
+        # Get int representation of predictions.
+        _, seq_preds = torch.max(output_seq[i].data, 1)
+
+        # Convert house numbers to arrays of strings (also, numpy).
+        seq_preds = seq_preds.cpu().numpy().astype(np.str)
+
+        # For each subject in the batch, add the string representation
+        # of the target to the corresponding element of the string array.
+        for j, pred in enumerate(seq_preds):
+
+            # Only do this up to the length predicted.
+            if i+1 <= len_pred[j]:
+                str_pred[j] += pred
+
+    return(str_pred.astype(np.int))
 
 
 def eval_model(dataset_dir, metadata_filename, model_filename,
@@ -71,7 +102,6 @@ def eval_model(dataset_dir, metadata_filename, model_filename,
     print("# Testing Model ... #")
     test_correct = 0
     test_n_samples = 0
-    y_true = []
     y_pred = []
     for i, batch in enumerate(tqdm(test_loader)):
         # get the inputs
@@ -83,30 +113,16 @@ def eval_model(dataset_dir, metadata_filename, model_filename,
         target_ndigits = target_ndigits.to(device)
 
         # Forward
-        outputs = model(inputs)
+        output_len, output_seq = model(inputs)
+        predictions = gen_predictions(output_len, output_seq)
 
-        # Statistics
-        _, predicted = torch.max(outputs.data, 1)
-
-        y_pred.extend(list(predicted.cpu().numpy()))
-        y_true.extend(list(target_ndigits.cpu().numpy()))
-
-        test_correct += (predicted == target_ndigits).sum().item()
-        test_n_samples += target_ndigits.size(0)
-        test_accuracy = test_correct / test_n_samples
-
-    print("Confusion Matrix")
-    print("===============================")
-    print(confusion_matrix(y_true, y_pred, labels=range(0, 7)))
-    print("===============================")
-    print('\n\nTest Set Accuracy: {:.4f}'.format(test_accuracy))
+        y_pred.extend(list(predictions))
 
     time_elapsed = time.time() - since
 
     print('\n\nTesting complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
 
-    y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
 
     return y_pred
@@ -135,10 +151,10 @@ if __name__ == "__main__":
 
     # MODIFY THIS SECTION
     # Put your group name here
-    group_name = "b1phut_baseline"
+    group_name = "b2phut4"
 
     model_filename = '/rap/jvb-000-aa/COURS2019/etudiants/submissions/' \
-                     'b1phut_baseline/model/vgg19_momentum.pth'
+                     'b2phut4/model/best_model.pth'
     # model_filename should be the absolute path on shared disk to your
     # best model. You need to ensure that they are available to evaluators on
     # Helios.
