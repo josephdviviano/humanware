@@ -85,7 +85,7 @@ class SVHNDataset(data.Dataset):
 
 
         '''
-        'Generates one sample of data'
+        # Generates one sample of data
 
         img_name = os.path.join(
             os.path.join(

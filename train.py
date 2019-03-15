@@ -19,8 +19,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils.config import cfg, cfg_from_file
 from utils.dataloader import prepare_dataloaders
 from utils.misc import mkdir_p
-from models.deepconv import DeepConv
-from models.vgg import VGG
+from models.deepconv import DeepConv  # If using model from Goodfellow paper
+from models.vgg import VGG  # If using model from Simonyan paper
 from models.resnet import *
 from trainer.trainer import train_model
 
@@ -39,7 +39,6 @@ def parse_args():
     ----------
     args : obj
         The arguments.
-
     '''
     parser = argparse.ArgumentParser(description='Train a CNN network')
     parser.add_argument('--cfg', type=str,
@@ -71,13 +70,12 @@ def parse_args():
                         on.""")
 
     args = parser.parse_args()
-    return(args)
+    return (args)
 
 
 def load_config():
     '''
     Load the config .yml file.
-
     '''
     args = parse_args()
 
@@ -129,6 +127,9 @@ def fix_seed(seed):
 
 def load_checkpoint(model, optimizer, losslogger,
                     filename='checkpoint.pth.tar'):
+    """
+    To be removed.
+    """
     # Note: Input model & optimizer should be pre-defined.
     # This routine only updates their states.
     start_epoch = 0
@@ -141,7 +142,7 @@ def load_checkpoint(model, optimizer, losslogger,
         optimizer.load_state_dict(checkpoint['optimizer'])
         losslogger = checkpoint['losslogger']
         print("=> loaded checkpoint '{}' (epoch {})".format(
-                  filename, checkpoint['epoch']))
+            filename, checkpoint['epoch']))
     else:
         print("=> no checkpoint found at '{}'".format(filename))
 
@@ -197,6 +198,7 @@ if __name__ == '__main__':
 
     for iteration in range(base_iteration, cfg.TRAIN.NUM_HYPER_LOOP):
 
+        # Model to be used
         mdl = ResNet18(num_classes=7)
         # mdl = ConvNet(num_classes=7)
         # mdl = BaselineCNN(num_classes=7)

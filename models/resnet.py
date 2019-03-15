@@ -1,7 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-'''ResNet in PyTorch.
+'''
+ResNet in PyTorch.
 For Pre-activation ResNet, see 'preact_resnet.py'.
 Reference:
 [1] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
