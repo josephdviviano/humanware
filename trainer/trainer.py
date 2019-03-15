@@ -17,6 +17,11 @@ class Loss():
     Calculates the multitask loss using the defined loss function.
     In order to zero losses for predictions that should not have been made,
     the seq_loss requires reduction to be turned off.
+
+    Returns
+    ----------
+    loss : tensor
+        The sum of length loss and digit loss.
     """
 
     def __init__(self):
@@ -63,7 +68,27 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask,
     """
     Sequence predictions. All elements in valid_len_mask that are
     0 are not counted.
+
+    Parameters
+    ----------
+    output_seq: tensor
+        The estimated sequence length from the model output
+    target_seq: long tensor
+        The target sequence we try to estimate
+    valid_len_mask: numpy array
+        A mask to zero-out the sequences with incorrect length prediction.
+    output_pred: Bool
+        If True returns a vector of correctly predicted sequence
+        If False, return the sum of correctly predicted sequence
+
+    Returns
+    ----------
+    n_correct : int
+        The number of correct sequences.
+    str_pred == str_target : numpy array
+        The vector of correctly predicted sequence
     """
+
     # TODO: astype string length should be taken from cfg!
     # Store the predicted and target integers as an array of strings.
     this_batch = output_seq[0].size()[0]
@@ -109,6 +134,22 @@ def count_correct_sequences(output_seq, target_seq, valid_len_mask,
 
 
 def misclassified_images(model, valid_loader, device, writer, number_max=5):
+    """
+    Does a foward pass for the best model to add missclassified images to TensorboardX writer for easy visualization.
+
+    Parameters
+    ----------
+    model: obj
+        The model.
+    valid_loader: obj
+        The dataloader to load the validation dataset.
+    device: string
+        The torch device used either cuda of cpu
+    writer: Bool
+        The TensorboardX writer.
+    number_max: int
+        The maximum number of images to add to TensorboardX
+    """
 
     firsts_misclassified_img = ()
     nb_misclassified_img = 0
@@ -145,7 +186,7 @@ def misclassified_images(model, valid_loader, device, writer, number_max=5):
                 nb_misclassified_img += n_misclassified
 
     print('Adding {} misclassified images to TensorboardX...'.format(
-          number_max))
+        number_max))
 
     img = torch.cat(firsts_misclassified_img, dim=0)
     writer.add_image('Misclassified_images', torchvision.utils.make_grid(img))
@@ -155,6 +196,26 @@ def run_epoch(model, loader, optimizer, lossfxn, device, train=True):
     """
     Runs an epoch of data through model, either in training or
     evaluation mode.
+
+    Parameters
+    ----------
+    model: obj
+        The model.
+    loader: obj
+        The data loader for the training dataset.
+    optimizer: torch.optim
+        The optimizer used with the model.
+    lossfxn: function
+        The loss function to use (ex: multi-loss)
+    device: string
+        The device to be used (ex: cuda:0, cpu)
+    train: Bool
+        If True trains the model, else validation the model
+
+    Returns
+    ----------
+    results : dictionary
+        The loss, the length accuracy and the sequence accuaracy.
     """
 
     mean_loss, n_iter, n_samples, len_correct, seq_correct = 0, 0, 0, 0, 0
@@ -207,7 +268,7 @@ def run_epoch(model, loader, optimizer, lossfxn, device, train=True):
 
     results = {'loss': mean_loss, 'len_acc': len_acc, 'seq_acc': seq_acc}
 
-    return(results)
+    return (results)
 
 
 def train_model(model, optimizer, scheduler, hp_opt,
@@ -223,19 +284,42 @@ def train_model(model, optimizer, scheduler, hp_opt,
     ----------
     model : obj
         The model.
+    optimizer : torch.optim
+        The optimizer to use with the model
+    scheduler: torch.optim.lr_scheduler
+        Reduce learning rate when a metric has stopped improving.
+    hp_opt: skopt.optimizer
+        An Optimizer represents the steps of a bayesian optimisation loop used for hyper-parameter search.
     train_loader : obj
         The train data loader.
     valid_loader : obj
-    ``    The validation data loader.
+        The validation data loader.
     device : str
         The type of device to use ('cpu' or 'gpu').
-    num_eopchs : int
-        Number of epochs to train the model.
-    lr : float
-        Learning rate for the optimizer.
     output_dir : str
         path to the directory where to save the model.
+    iteration: int
+        The iteration state for the hyper-parameter loop
+    resume: Bool
+        If True, resume the model where it was at checkpointing.
+    best_final_acc: float
+        The best accuracy from the model. Used to save the best model.
+    num_epochs : int
+        Number of epochs to train the model.
+    lr : float or list
+        Learning rate for the optimizer.
+    l2 : float or list
+        Weight decay.
+    momentum: float or list
+        Values for the momentum SGD
+    track_misclassified: Bool
+        If True, adds misclassified images of the best model to tensorboardX
 
+    --------
+    Results
+
+    results : dictonary
+        best_model, best_epoch, best_acc, lr ,l2, momentum, time_elapsed, last_epoch, history, optimizer.
     """
     since = time.time()
     model = model.to(device)
@@ -269,7 +353,7 @@ def train_model(model, optimizer, scheduler, hp_opt,
                                       'Begin': since})
 
     print("Training model: hp_iteration={} starting at epoch={}".format(
-        iteration, base_epoch+1))
+        iteration, base_epoch + 1))
 
     for epoch in range(base_epoch, num_epochs):
 
@@ -297,7 +381,7 @@ def train_model(model, optimizer, scheduler, hp_opt,
                  'base_epoch': epoch,
                  'best_epoch': best_epoch,
                  'best_final_acc': best_final_acc,
-                 'epoch': epoch+1,
+                 'epoch': epoch + 1,
                  'history': history,
                  'hp_opt': hp_opt,
                  'l2': l2,
@@ -357,7 +441,7 @@ def train_model(model, optimizer, scheduler, hp_opt,
             print('New best model saved to {}'.format(model_filename))
 
         # Patience stop training after n epochs of no improvement.
-        elif epoch+1 - cfg.TRAIN.EARLY_STOPPING_PATIENCE == best_epoch:
+        elif epoch + 1 - cfg.TRAIN.EARLY_STOPPING_PATIENCE == best_epoch:
             print('No improvement in valid loss in {} epochs, stopping'.format(
                 cfg.TRAIN.EARLY_STOPPING_PATIENCE))
             break
@@ -384,4 +468,4 @@ def train_model(model, optimizer, scheduler, hp_opt,
         'optimizer': optimizer
     }
 
-    return(results)
+    return (results)

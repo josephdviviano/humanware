@@ -1,4 +1,5 @@
-CONFIG_NAME: 'VGG19'
+# Configuration file to use for setting all the relevant parameters
+CONFIG_NAME: 'Resnet18'
 DATASET_NAME: SVHN
 SEED: 1234
 
